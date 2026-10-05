@@ -1,0 +1,6 @@
+git+https://github.com/AllenInstitute/abc_atlas_access.git
+anndata
+h5py
+numpy
+pandas
+scipy

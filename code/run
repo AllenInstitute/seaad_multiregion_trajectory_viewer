@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p /data/abc_atlas_cache
+mkdir -p /results
+
+python /code/create_seaad_multiregion_pseudobulk.py \
+  --cache-dir /data/abc_atlas_cache \
+  --output /results/SEA_AD_Multiregion_library_supertype_pseudobulk.h5ad
