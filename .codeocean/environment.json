@@ -1,0 +1,169 @@
+{
+	"version": 1,
+	"base_image": "codeocean/py-r:python3.12.4-R4.3.3-JupyterLab4.2.4-RStudiorstudio-server-2024.04.2-764-ubuntu22.04",
+	"post_install": true,
+	"options": {
+		"registry_host_arg": true,
+		"git_ask_pass": true,
+		"mount_secrets": true
+	},
+	"installers": {
+		"apt": {
+			"packages": [
+				{
+					"name": "pandoc",
+					"version": "2.9.2.1-3ubuntu2"
+				},
+				{
+					"name": "shiny-server",
+					"version": "1.5.23.1030"
+				}
+			],
+			"sources": [
+				"deb http://deb.codeocean.com/shiny-server-jammy/ ubuntu main"
+			],
+			"gpg_keys": [
+				"0xAD2323F17326AE31401037733E05EBFF05441C52"
+			],
+			"install_software_properties_common": true
+		},
+		"conda": {
+			"packages": [
+				{
+					"name": "libcurl",
+					"version": "8.18.0"
+				},
+				{
+					"name": "libgcc-ng",
+					"version": "16.1.0"
+				},
+				{
+					"name": "libstdcxx-ng",
+					"version": "16.1.0"
+				},
+				{
+					"name": "nodejs",
+					"version": "25.2.1"
+				},
+				{
+					"name": "r-arrow",
+					"version": "21.0.0"
+				}
+			]
+		},
+		"pip": {
+			"packages": [
+				{
+					"name": "anndata",
+					"version": "0.13.2"
+				},
+				{
+					"name": "git+https://github.com/AllenInstitute/abc_atlas_access.git#egg=abc-atlas-access",
+					"version": "b16ee223d3466a57b30066973413ccc948c2e983"
+				},
+				{
+					"name": "h5py",
+					"version": "3.16.0"
+				},
+				{
+					"name": "numpy",
+					"version": "2.5.2"
+				},
+				{
+					"name": "pandas",
+					"version": "3.0.5"
+				},
+				{
+					"name": "pyarrow",
+					"version": "25.0.1"
+				},
+				{
+					"name": "pybiomart",
+					"version": "0.2.0"
+				},
+				{
+					"name": "scipy",
+					"version": "1.18.0"
+				}
+			],
+			"options": {},
+			"pre_install_options": {}
+		},
+		"rcran": {
+			"packages": [
+				{
+					"name": "shiny",
+					"version": "1.14.0"
+				},
+				{
+					"name": "bslib",
+					"version": "0.12.0"
+				},
+				{
+					"name": "dplyr",
+					"version": "1.2.1"
+				},
+				{
+					"name": "ggplot2",
+					"version": "3.5.2"
+				},
+				{
+					"name": "scales",
+					"version": "1.4.0"
+				},
+				{
+					"name": "shinycssloaders",
+					"version": "1.1.0"
+				},
+				{
+					"name": "cachem",
+					"version": "1.1.0"
+				},
+				{
+					"name": "DT",
+					"version": "0.34.0"
+				},
+				{
+					"name": "renv",
+					"version": "1.2.4"
+				},
+				{
+					"name": "rsconnect",
+					"version": "1.10.1"
+				},
+				{
+					"name": "curl",
+					"version": "8.0.0"
+				}
+			],
+			"use_rcache": true
+		},
+		"vscode": {
+			"packages": [
+				{
+					"name": "ms-python.python",
+					"version": "2025.14.0"
+				},
+				{
+					"name": "ms-toolsai.jupyter",
+					"version": "2025.4.1"
+				},
+				{
+					"name": "reditorsupport.r",
+					"version": "2.8.6"
+				},
+				{
+					"name": "saoudrizwan.claude-dev",
+					"version": "3.35.1"
+				}
+			],
+			"version": "4.100.3"
+		}
+	},
+	"env_variables": [
+		{
+			"name": "NODE_PATH",
+			"value": "/opt/conda/lib/node_modules"
+		}
+	]
+}

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -e
+curl -fsSL "https://awscli.amazonaws.com/v2/install.sh" | bash -s -- --system
+
+rm -rf /opt/conda/lib/R/library/curl
+
+export PATH="/opt/conda/bin:${PATH}"
+export LD_LIBRARY_PATH="/opt/conda/lib:${LD_LIBRARY_PATH:-}"
+export PKG_CONFIG_PATH="/opt/conda/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+
+npm install --global kiwi-schema@0.5.0
+
+Rscript -e 'install.packages(
+  "curl",
+  repos = "https://cloud.r-project.org",
+  type = "source"
+)'
+
+RSTUDIO_CONFIG="/etc/rstudio/rserver.conf"
+
+sed -i \
+  '/^rsession-ld-library-path=/d' \
+  "${RSTUDIO_CONFIG}"
+
+printf '\nrsession-ld-library-path=/opt/conda/lib\n' \
+  >> "${RSTUDIO_CONFIG}"
