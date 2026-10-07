@@ -1,0 +1,9 @@
+{
+	"version": 1,
+	"attached_datasets": [
+		{
+			"id": "599cb35c-345d-4cf9-bc75-e2783751dd2a",
+			"mount": "pseudobulk"
+		}
+	]
+}

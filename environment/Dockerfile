@@ -1,4 +1,4 @@
-# hash:sha256:f92761f3765d856c2dcc89c64e76f6579b1f0837696cdc5a4e670b993c1fb536
+# hash:sha256:f362f6f63b681465a4b0e7a0bda9fb280463f6a8665a451acc3d45b9ca20fcd9
 ARG REGISTRY_HOST
 FROM $REGISTRY_HOST/codeocean/py-r:python3.12.4-R4.3.3-JupyterLab4.2.4-RStudiorstudio-server-2024.04.2-764-ubuntu22.04
 
@@ -50,7 +50,7 @@ RUN Rscript -e 'remotes::install_version("shiny", "1.14.0")' \
     && Rscript -e 'remotes::install_version("shinycssloaders", "1.1.0")' \
     && Rscript -e 'remotes::install_version("cachem", "1.1.0")' \
     && Rscript -e 'remotes::install_version("DT", "0.34.0")' \
-    && Rscript -e 'remotes::install_version("renv", "1.2.4")' \
+    && Rscript -e 'remotes::install_version("renv", "1.3.0")' \
     && Rscript -e 'remotes::install_version("rsconnect", "1.10.1")' \
     && Rscript -e 'remotes::install_version("curl", "8.0.0")'
 
