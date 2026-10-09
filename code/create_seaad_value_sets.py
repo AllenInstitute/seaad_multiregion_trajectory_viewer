@@ -22,8 +22,8 @@ import anndata as ad
 import numpy as np
 import pandas as pd
 
-DEFAULT_INPUT = "/results/SEA_AD_Multiregion_library_supertype_pseudobulk.h5ad"
-DEFAULT_OUTPUT = "/results/SEAAD_parquet_by_gene/metadata/value_sets.csv"
+DEFAULT_INPUT = "data/pseudobulk/SEA_AD_Multiregion_library_supertype_pseudobulk.h5ad"
+DEFAULT_OUTPUT = "data/parquet/metadata/value_sets.csv"
 
 ALIASES = {
     "Brain Region": ["Brain Region", "region_of_interest_label", "feature_matrix_label"],

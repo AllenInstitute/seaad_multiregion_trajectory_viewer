@@ -4,6 +4,14 @@
 		{
 			"id": "599cb35c-345d-4cf9-bc75-e2783751dd2a",
 			"mount": "pseudobulk"
+		},
+		{
+			"id": "98c900f7-8e97-4370-9a1c-e2c9431e2591",
+			"mount": "parquet_1"
+		},
+		{
+			"id": "c9db6570-c850-4269-9bf3-d5ed5398c898",
+			"mount": "parquet"
 		}
 	]
 }

@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse, stats
 
-DEFAULT_INPUT = "/results/SEA_AD_Multiregion_library_supertype_pseudobulk.h5ad"
+DEFAULT_INPUT = "data/pseudobulk/SEA_AD_Multiregion_library_supertype_pseudobulk.h5ad"
 DEFAULT_OUTPUT = "/results/SEAAD_parquet_by_gene/statistics/SEAAD_gene_summary_statistics.csv"
 EPSILON = 1e-8
 
