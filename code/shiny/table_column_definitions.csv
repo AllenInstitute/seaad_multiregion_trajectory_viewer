@@ -1,0 +1,18 @@
+column_names,column_definitions
+gene_symbol,Gene symbol. Select the linked symbol to open the corresponding GeneCards page.
+ln(mean_CPM+1),Natural logarithm of the mean counts per million (CPM) across all pseudobulk observations plus one.
+age_log2fc,Log2 fold change comparing mean CPM among postnatal observations at P40 or older with mean CPM among all embryonic observations.
+age_log2fc(>0),Log2 fold change comparing P40-or-older and embryonic observations after excluding zero-expression values within each age group.
+max_ROI,Region-of-interest label with the highest mean CPM for the gene.
+log2fc_ROI,Log2 fold change comparing the maximum ROI mean CPM with the arithmetic mean of the ROI-level mean CPM values.
+log2fc_ROI(>0),ROI log2 fold change calculated from mean CPM values after excluding zero-expression observations within each ROI.
+max_subclass,Cell subclass with the highest mean CPM for the gene.
+log2fc_subclass,Log2 fold change comparing the maximum subclass mean CPM with the arithmetic mean of the subclass-level mean CPM values.
+log2fc_subclass(>0),Subclass log2 fold change calculated from mean CPM values after excluding zero-expression observations within each subclass.
+gene_type,Indication of what type of gene this is (from BioMart).
+frac_expr,Fraction of all cells expressing the gene calculated as the total number of expressing cells divided by the total number of cells across all pseudobulk observations.
+age_frac_diff,Difference in the fraction of cells expressing the gene between postnatal observations at P40 or older and all embryonic observations. Positive values indicate higher detection at P40 or older.
+max_frac_ROI,Region-of-interest label with the highest fraction of cells expressing the gene.
+frac_diff_ROI,Difference between the highest ROI-level fraction of cells expressing the gene and the arithmetic mean of the ROI-level fractions.
+max_frac_subclass,Cell subclass with the highest fraction of cells expressing the gene.
+frac_diff_subclass,Difference between the highest subclass-level fraction of cells expressing the gene and the arithmetic mean of the subclass-level fractions.
