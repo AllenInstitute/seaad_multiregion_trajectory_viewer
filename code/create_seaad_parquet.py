@@ -143,6 +143,26 @@ def prepare_obs(adata: ad.AnnData) -> pd.DataFrame:
     obs.insert(0, "sample_id", adata.obs_names.astype(str))
     if obs["sample_id"].duplicated().any():
         raise ValueError("sample_id values are not unique.")
+
+    # SEA-AD pseudobulk rows do not require a separate library_label field.
+    # The app uses this column to verify exact row alignment with CPM_scaling.csv.
+    # Therefore, when it is absent, use the stable unique pseudobulk sample_id.
+    if "library_label" not in obs.columns:
+        logging.info(
+            "obs does not contain library_label; using sample_id as library_label."
+        )
+        obs["library_label"] = obs["sample_id"]
+    else:
+        obs["library_label"] = obs["library_label"].astype("string")
+        missing = obs["library_label"].isna() | (
+            obs["library_label"].str.strip() == ""
+        )
+        if missing.any():
+            logging.warning(
+                "Replacing %d missing library_label values with sample_id.",
+                int(missing.sum()),
+            )
+            obs.loc[missing, "library_label"] = obs.loc[missing, "sample_id"]
     obs[NUCLEI_COLUMN] = pd.to_numeric(obs[NUCLEI_COLUMN], errors="raise")
     if obs[NUCLEI_COLUMN].isna().any() or (obs[NUCLEI_COLUMN] <= 0).any():
         raise ValueError("Number of nuclei must be finite and positive.")
@@ -150,6 +170,39 @@ def prepare_obs(adata: ad.AnnData) -> pd.DataFrame:
         if isinstance(obs[column].dtype, pd.CategoricalDtype):
             obs[column] = obs[column].astype("string")
     return obs.reset_index(drop=True)
+
+
+def create_cpm_scaling(adata: ad.AnnData, obs: pd.DataFrame) -> pd.DataFrame:
+    """Match the mouse pipeline: CPM uses each pseudobulk row's total raw counts."""
+    # Slicing a backed CSRDataset loads a scipy sparse matrix supporting sum.
+    row_totals = np.zeros(adata.n_obs, dtype=np.float64)
+    row_block_size = 1024
+    matrix = adata.X
+    for start in range(0, adata.n_obs, row_block_size):
+        stop = min(start + row_block_size, adata.n_obs)
+        block = matrix[start:stop, :]
+        if sparse.issparse(block):
+            totals = np.asarray(block.sum(axis=1, dtype=np.float64)).ravel()
+        else:
+            totals = np.asarray(block, dtype=np.float64).sum(axis=1)
+        row_totals[start:stop] = totals
+        del block
+    logging.info("Calculated CPM library totals for %d pseudobulk rows.", adata.n_obs)
+    if row_totals.shape[0] != adata.n_obs:
+        raise RuntimeError("Unexpected row count while calculating CPM scaling.")
+    if not np.all(np.isfinite(row_totals)) or np.any(row_totals < 0):
+        raise ValueError("Pseudobulk library totals must be finite and nonnegative.")
+
+    scaling = np.zeros_like(row_totals, dtype=np.float64)
+    positive = row_totals > 0
+    scaling[positive] = 1_000_000.0 / row_totals[positive]
+
+    return pd.DataFrame(
+        {
+            "library_label": obs["library_label"].astype(str).to_numpy(),
+            "CPM_scaling_factor": scaling,
+        }
+    )
 
 
 def matrix_block(matrix, start: int, stop: int):
@@ -301,9 +354,29 @@ def preserve_cps(source: str, metadata_dir: Path) -> None:
     cps.to_csv(metadata_dir / "global_cps_multiregion.csv", index=False)
 
 
-def validate_output(output: Path, gene_map: pd.DataFrame, n_obs: int) -> None:
+def validate_output(
+    output: Path,
+    gene_map: pd.DataFrame,
+    n_obs: int,
+    expected_library_labels: np.ndarray,
+) -> None:
     if pq.ParquetFile(output / "metadata" / "obs_metadata.parquet").metadata.num_rows != n_obs:
         raise RuntimeError("obs_metadata.parquet row-count mismatch.")
+    cpm_path = output / "metadata" / "CPM_scaling.csv"
+    saved_cpm = pd.read_csv(cpm_path)
+    if list(saved_cpm.columns) != ["library_label", "CPM_scaling_factor"]:
+        raise RuntimeError("CPM_scaling.csv columns do not match the app contract.")
+    if len(saved_cpm) != n_obs:
+        raise RuntimeError("CPM_scaling.csv row-count mismatch.")
+    if not np.array_equal(
+        saved_cpm["library_label"].astype(str).to_numpy(),
+        expected_library_labels.astype(str),
+    ):
+        raise RuntimeError("CPM_scaling.csv library order does not match metadata.")
+    scaling = pd.to_numeric(saved_cpm["CPM_scaling_factor"], errors="coerce")
+    if scaling.isna().any() or (scaling < 0).any():
+        raise RuntimeError("CPM_scaling.csv contains invalid scaling factors.")
+
     saved_map = pq.read_table(output / "metadata" / "gene_map.parquet").to_pandas()
     if len(saved_map) != len(gene_map):
         raise RuntimeError("gene_map.parquet row-count mismatch.")
@@ -337,6 +410,7 @@ def main() -> None:
         validate_input(adata)
         obs = prepare_obs(adata)
         gene_map = create_gene_map(adata.var.copy())
+        cpm_scaling = create_cpm_scaling(adata, obs)
         compression = None if args.compression == "none" else args.compression
 
         # These small files are safe to rewrite on a resumed run.
@@ -349,6 +423,10 @@ def main() -> None:
             pa.Table.from_pandas(gene_map, preserve_index=False),
             args.output / "metadata" / "gene_map.parquet",
             compression=compression,
+        )
+        cpm_scaling.to_csv(
+            args.output / "metadata" / "CPM_scaling.csv",
+            index=False,
         )
 
         write_gene_files(
@@ -367,7 +445,14 @@ def main() -> None:
             "n_genes": int(adata.n_vars),
             "gene_file_layout": "counts_by_gene/gene=<gene_column>/data.parquet",
             "gene_columns": list(GENE_COLUMNS),
-            "normalization_in_app": "summed_counts / Number of nuclei * 10000",
+            "cpm_definition": (
+                "summed_counts * (1,000,000 / total raw counts across all genes "
+                "in the pseudobulk row)"
+            ),
+            "sample_order": (
+                "Identical across obs_metadata.parquet, CPM_scaling.csv, and "
+                "every gene file"
+            ),
             "fraction_expressing": (
                 "number_of_nuclei_expressing / Number of nuclei"
             ),
@@ -375,7 +460,12 @@ def main() -> None:
         with open(args.output / "manifest.json", "w", encoding="utf-8") as handle:
             json.dump(manifest, handle, indent=2)
 
-        validate_output(args.output, gene_map, adata.n_obs)
+        validate_output(
+            args.output,
+            gene_map,
+            adata.n_obs,
+            obs["library_label"].astype(str).to_numpy(),
+        )
         logging.info("Completed SEA-AD Parquet conversion: %s", args.output)
     finally:
         adata.file.close()

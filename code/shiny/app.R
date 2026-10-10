@@ -11,16 +11,16 @@ suppressPackageStartupMessages({
 })
 
 # ============================================================
-# Developing Mouse Visual Cortex Gene Expression Viewer
+# SEA-AD Multiregion Gene Expression Viewer
 # ============================================================
 
-app_title <- "Developing Mouse Visual Cortex Gene Expression Viewer"
+app_title <- "SEA-AD Multiregion Gene Expression Viewer"
 
 s3_bucket_name <- "sea-ad-single-cell-profiling"
 s3_region <- "us-west-2"
 s3_prefix <- paste0(
   "Multiregion_2026/previous_objects/parquet/",
-  "TEST_dev_mouse"
+  "Multiregion_2026"
 )
 
 bucket <- arrow::s3_bucket(
@@ -38,8 +38,11 @@ gene_map_source <- bucket$path(
 cpm_source <- bucket$path(
   file.path(s3_prefix, "metadata", "CPM_scaling.csv")
 )
+cps_source <- bucket$path(
+  file.path(s3_prefix, "metadata", "global_cps_multiregion.csv")
+)
 statistics_source <- bucket$path(
-  file.path(s3_prefix, "statistics", "mouse_gene_summary_statistics.csv")
+  file.path(s3_prefix, "statistics", "seaad_gene_summary_statistics.csv")
 )
 value_sets_source <- bucket$path(
   file.path(s3_prefix, "metadata", "value_sets.csv")
@@ -60,6 +63,10 @@ read_startup_data <- function() {
         cpm_source,
         as_data_frame = TRUE
       ),
+      cps = arrow::read_csv_arrow(
+        cps_source,
+        as_data_frame = TRUE
+      ),
       statistics = arrow::read_csv_arrow(
         statistics_source,
         as_data_frame = TRUE
@@ -73,7 +80,7 @@ read_startup_data <- function() {
       stop(
         paste(
           "Public AWS data connection failed.",
-          "The application could not read the mouse visual cortex files.",
+          "The application could not read the SEA-AD multiregion files.",
           "Please verify that the S3 prefix is public and available.",
           "Original error:",
           conditionMessage(e)
@@ -88,6 +95,7 @@ startup <- read_startup_data()
 metadata <- as.data.frame(startup$metadata, stringsAsFactors = FALSE)
 gene_map <- as.data.frame(startup$gene_map, stringsAsFactors = FALSE)
 cpm_scaling <- as.data.frame(startup$cpm, stringsAsFactors = FALSE)
+cps_metadata <- as.data.frame(startup$cps, stringsAsFactors = FALSE)
 gene_statistics <- as.data.frame(
   startup$statistics,
   stringsAsFactors = FALSE,
@@ -260,65 +268,26 @@ if (file.exists(tokens_path)) {
 # ============================================================
 # Validate and align supporting data
 # ============================================================
-
-required_metadata <- c("sample_id", "library_label")
+required_metadata <- c("sample_id", "library_label", "Number of nuclei", "Class", "Subclass", "Supertype", "Brain Region", "Donor ID", "Cognitive Status")
 missing_metadata <- setdiff(required_metadata, names(metadata))
-if (length(missing_metadata) > 0) {
-  stop(
-    "obs_metadata.parquet is missing: ",
-    paste(missing_metadata, collapse = ", ")
-  )
-}
-
+if (length(missing_metadata)) stop("obs_metadata.parquet is missing: ", paste(missing_metadata, collapse = ", "))
 required_gene_map <- c("gene_symbol", "gene_column")
 missing_gene_map <- setdiff(required_gene_map, names(gene_map))
-if (length(missing_gene_map) > 0) {
-  stop(
-    "gene_map.parquet is missing: ",
-    paste(missing_gene_map, collapse = ", ")
-  )
-}
-
+if (length(missing_gene_map)) stop("gene_map.parquet is missing: ", paste(missing_gene_map, collapse = ", "))
 required_cpm <- c("library_label", "CPM_scaling_factor")
 missing_cpm <- setdiff(required_cpm, names(cpm_scaling))
-if (length(missing_cpm) > 0) {
-  stop(
-    "CPM_scaling.csv is missing: ",
-    paste(missing_cpm, collapse = ", ")
-  )
-}
-
-if (nrow(metadata) != nrow(cpm_scaling)) {
-  stop("CPM_scaling.csv and obs_metadata.parquet have different row counts.")
-}
-
-if (!identical(
-  as.character(metadata$library_label),
-  as.character(cpm_scaling$library_label)
-)) {
-  stop("CPM_scaling.csv library order does not match obs_metadata.parquet.")
-}
-
-if (!"donor_age" %in% names(metadata)) {
-  stop("obs_metadata.parquet must contain donor_age to derive stage.")
-}
-
+if (length(missing_cpm)) stop("CPM_scaling.csv is missing: ", paste(missing_cpm, collapse = ", "))
+if (nrow(metadata) != nrow(cpm_scaling)) stop("CPM_scaling.csv and obs_metadata.parquet have different row counts.")
+if (!identical(as.character(metadata$library_label), as.character(cpm_scaling$library_label))) stop("CPM_scaling.csv library order does not match obs_metadata.parquet.")
+required_cps <- c("donor_id", "CPS_Global", "CPS_Global_ABeta", "CPS_Global_pTau")
+missing_cps <- setdiff(required_cps, names(cps_metadata))
+if (length(missing_cps)) stop("global_cps_multiregion.csv is missing: ", paste(missing_cps, collapse = ", "))
+cps_metadata <- cps_metadata |> transmute(`Donor ID` = as.character(donor_id), CPS_Global = as.numeric(CPS_Global), CPS_Global_ABeta = as.numeric(CPS_Global_ABeta), CPS_Global_pTau = as.numeric(CPS_Global_pTau)) |> distinct(`Donor ID`, .keep_all = TRUE)
 metadata <- metadata |>
-  mutate(
-    sample_id = as.character(sample_id),
-    library_label = as.character(library_label),
-    CPM_scaling_factor = as.numeric(cpm_scaling$CPM_scaling_factor),
-    stage = case_when(
-      grepl("^E[0-9]+(\\.[0-9]+)?$", trimws(as.character(donor_age))) ~ "embryonic",
-      grepl("^P[0-9]+(\\.[0-9]+)?$", trimws(as.character(donor_age))) ~ "postnatal",
-      TRUE ~ NA_character_
-    )
-  )
-
-if (anyDuplicated(metadata$sample_id)) {
-  stop("sample_id must be unique in obs_metadata.parquet.")
-}
-
+  mutate(sample_id = as.character(sample_id), library_label = as.character(library_label), `Donor ID` = as.character(`Donor ID`), CPM_scaling_factor = as.numeric(cpm_scaling$CPM_scaling_factor)) |>
+  left_join(cps_metadata, by = "Donor ID") |>
+  mutate(dementia = case_when(grepl("no dementia|not demented|cognitively normal", as.character(`Cognitive Status`), ignore.case = TRUE) ~ "No dementia", !is.na(`Cognitive Status`) & nzchar(trimws(as.character(`Cognitive Status`))) ~ "Dementia", TRUE ~ NA_character_))
+if (anyDuplicated(metadata$sample_id)) stop("sample_id must be unique in obs_metadata.parquet.")
 names(gene_statistics) <- make.unique(
   names(gene_statistics),
   sep = "_"
@@ -333,7 +302,7 @@ statistics_gene_column <- possible_statistics_gene_columns[
 
 if (is.na(statistics_gene_column)) {
   stop(
-    "mouse_gene_summary_statistics.csv must contain one of: ",
+    "seaad_gene_summary_statistics.csv must contain one of: ",
     paste(possible_statistics_gene_columns, collapse = ", ")
   )
 }
@@ -341,6 +310,21 @@ if (is.na(statistics_gene_column)) {
 gene_statistics[[statistics_gene_column]] <- as.character(
   gene_statistics[[statistics_gene_column]]
 )
+statistics_table_columns <- c(
+  "gene_symbol", "ln(mean_CPM+1)", "frac_expr", "dementia_log2fc",
+  "dementia_frac_diff", "max_ROI", "log2fc_ROI", "max_frac_ROI",
+  "frac_diff_ROI", "max_subclass", "log2fc_subclass",
+  "max_frac_subclass", "frac_diff_subclass", "gene_type"
+)
+missing_statistics_columns <- setdiff(statistics_table_columns, names(gene_statistics))
+if (length(missing_statistics_columns) > 0) {
+  stop(
+    "seaad_gene_summary_statistics.csv is missing required columns: ",
+    paste(missing_statistics_columns, collapse = ", ")
+  )
+}
+gene_statistics <- gene_statistics[, statistics_table_columns, drop = FALSE]
+statistics_gene_column <- "gene_symbol"
 
 gene_map <- gene_map |>
   transmute(
@@ -476,24 +460,19 @@ first_existing <- function(candidates, data_names = names(metadata)) {
   if (length(hit) == 0) NA_character_ else hit[[1]]
 }
 
-age_field <- first_existing(c(
-  "age", "age_label", "donor_age", "developmental_age",
-  "age_in_days", "age_days"
-))
+age_field <- "dementia"
 region_field <- first_existing(c(
   "region_of_interest_label", "Brain Region", "brain_region",
   "region_label", "structure"
 ))
 class_field <- first_existing(c("class", "class_label", "Class"))
 subclass_field <- first_existing(c("subclass", "subclass_label", "Subclass"))
-cluster_field <- first_existing(c("cluster_alias", "cluster", "cluster_label"))
+cluster_field <- first_existing(c("cluster_alias", "cluster", "cluster_label","Supertype"))
 subcluster_field <- first_existing(c(
   "subcluster_alias", "subcluster", "subcluster_label"
 ))
 
-if (is.na(age_field)) {
-  stop("No age field was found in obs_metadata.parquet.")
-}
+
 if (is.na(region_field)) {
   stop("No brain-region field was found in obs_metadata.parquet.")
 }
@@ -508,14 +487,19 @@ preferred_fields <- unique(c(
   subcluster_field,
   region_field,
   age_field,
-  "stage",
-  "sex",
-  "donor_sex",
+  "Brain Region",
+  "Sex",
+  "Overall AD neuropathological Change",
+  "Primary Study Name",
+  "Thal",
+  "Braak",
+  "CERAD score",
+  "dementia",
+  "Cognitive Status",
+  "Severely Affected Donor",
+  "library_prep",
   "library_label",
-  "donor_label",
-  "donor_id",
-  "developmental_compartment",
-  "sample_type"
+  "Donor ID"
 ))
 
 preferred_fields <- preferred_fields[
@@ -806,21 +790,23 @@ gene_cache <- cachem::cache_mem(
   max_age = Inf
 )
 
-default_gene <- if ("Reln" %in% available_genes) {
-  "Reln"
+progression_fields <- c("CPS_Global", "CPS_Global_ABeta", "CPS_Global_pTau")
+default_progression <- "CPS_Global"
+default_gene <- if ("APOE" %in% available_genes) {
+  "APOE"
 } else {
   available_genes[[1]]
 }
-default_x <- if ("donor_age" %in% plot_fields) {
-  "donor_age"
-} else {
-  age_field
-}
-
-default_second <- if (!is.na(subclass_field)) {
+default_x <- if (!is.na(subclass_field) && subclass_field %in% plot_fields) {
   subclass_field
 } else {
-  cluster_field
+  plot_fields[[1]]
+}
+
+default_second <- if (!is.na(region_field) && region_field %in% setdiff(plot_fields, default_x)) {
+  region_field
+} else {
+  setdiff(plot_fields, default_x)[[1]]
 }
 default_facet <- if (!is.na(subclass_field)) subclass_field else cluster_field
 default_color <- region_field
@@ -830,25 +816,25 @@ default_color <- region_field
 # ============================================================
 
 app_header <- div(
-  class = "mouse-header",
+  class = "seaad-header",
   tags$a(
-    class = "mouse-logo-link",
+    class = "seaad-logo-link",
     href = "https://alleninstitute.org/",
     target = "_blank",
     tags$img(
       src = "allen_institute_logo.svg",
       alt = "alleninstitute.org",
-      class = "mouse-logo"
+      class = "seaad-logo"
     )
   ),
-  tags$span(class = "mouse-title", app_title),
+  tags$span(class = "seaad-title", app_title),
   div(
-    class = "mouse-header-links",
+    class = "seaad-header-links",
     tags$a(
-      href = "https://alleninstitute.github.io/abc_atlas_access/descriptions/Dev-Mouse-Vis-Cortex-dataset.html",
+      href = "https://brain-map.org/consortia/sea-ad",
       target = "_blank",
       icon("brain"),
-      tags$span("Dataset")
+      tags$span("SEA-AD")
     ),
     tags$a(
       href = "https://brain-map.org",
@@ -885,12 +871,12 @@ ui <- function(request) {
         border: 0 !important;
       }
       .navbar-brand { width: 100% !important; padding: 0 !important; }
-      .mouse-header {
+      .seaad-header {
         position: relative; display: flex; align-items: center;
         justify-content: space-between; width: 100%; height: 64px;
         padding: 0 16px;
       }
-      .mouse-header-spacer {
+      .seaad-header-spacer {
         width: 210px;
       }
       
@@ -908,14 +894,14 @@ ui <- function(request) {
         object-fit: contain;
         margin: 0 auto;
       }
-      .mouse-logo-link { width: 180px; display: flex; align-items: center; }
-      .mouse-logo { height: 52px; max-width: 175px; object-fit: contain; }
-      .mouse-title {
+      .seaad-logo-link { width: 180px; display: flex; align-items: center; }
+      .seaad-logo { height: 52px; max-width: 175px; object-fit: contain; }
+      .seaad-title {
         position: absolute; left: 50%; transform: translateX(-50%);
         color: white; font-size: 21px; font-weight: 700; white-space: nowrap;
       }
-      .mouse-header-links { display: flex; gap: 6px; width: 210px; justify-content: flex-end; }
-      .mouse-header-links a {
+      .seaad-header-links { display: flex; gap: 6px; width: 210px; justify-content: flex-end; }
+      .seaad-header-links a {
         color: white !important; text-decoration: none; font-size: 13px;
         padding: 18px 8px;
       }
@@ -1074,12 +1060,12 @@ ui <- function(request) {
         min-height: 0 !important;
       }
       @media (max-width: 1000px) {
-        .mouse-title { font-size: 15px; max-width: 55vw; overflow: hidden; text-overflow: ellipsis; }
-        .mouse-header-links span { display: none; }
-        .mouse-header-links { width: 80px; }
-        .mouse-logo-link { width: 110px; }
-        .mouse-logo { max-width: 105px; }
-        .mouse-header-spacer {
+        .seaad-title { font-size: 15px; max-width: 55vw; overflow: hidden; text-overflow: ellipsis; }
+        .seaad-header-links span { display: none; }
+        .seaad-header-links { width: 80px; }
+        .seaad-logo-link { width: 110px; }
+        .seaad-logo { max-width: 105px; }
+        .seaad-header-spacer {
           width: 80px;
         }
       }
@@ -1138,10 +1124,10 @@ ui <- function(request) {
       div(
         class = "sidebar-logo-container",
         tags$a(
-          href = "https://alleninstitute.github.io/abc_atlas_access/descriptions/Dev-Mouse-Vis-Cortex-dataset.html",
+          href = "https://brain-map.org/consortia/sea-ad",
           target = "_blank",
           tags$img(
-            src = "Developing_Mouse_Visual_Cortex_logo.png",
+            src = "app_logo.png",
             alt = app_title,
             class = "sidebar-logo"
           )
@@ -1214,7 +1200,7 @@ ui <- function(request) {
             "plot_type",
             "Plot type",
             choices = c(
-              "Trajectory across development" = "trajectory",
+              "Trajectory across disease" = "trajectory",
               "Heatmap of mean expression" = "heatmap",
               "Dot plot of mean expression" = "dot",
               "Violin plot with observations" = "violin",
@@ -1238,9 +1224,9 @@ ui <- function(request) {
             condition = "input.plot_type == 'trajectory'",
             selectInput(
               "progression_variable",
-              "Developmental progression axis",
-              choices = age_field,
-              selected = age_field
+              "CPS progression axis",
+              choices = progression_fields,
+              selected = default_progression
             ),
             selectInput(
               "facet_variable",
@@ -1555,7 +1541,7 @@ ui <- function(request) {
           "align-items: stretch; margin-bottom: 1px;"
         ),
         tags$a(
-          href = "mailto:jeremym@alleninstitute.org?body=''&subject='Dev mouse' app comments",
+          href = "mailto:jeremym@alleninstitute.org?body=''&subject='SEA-AD multiregion app comments",
           icon("envelope", lib = "font-awesome"),
           tags$span("PROVIDE FEEDBACK"),
           style = paste(
@@ -1569,7 +1555,7 @@ ui <- function(request) {
           )
         ),
         tags$a(
-          href = "https://github.com/AllenInstitute/mouse-developing-vis-app/",
+          href = "https://github.com/AllenInstitute/seaad-developing-vis-app/",
           target = "_blank",
           rel = "noopener noreferrer",
           icon("code", lib = "font-awesome"),
@@ -1596,8 +1582,8 @@ ui <- function(request) {
       p(
         "App developed by Jeremy Miller, coded with help from Microsoft Copilot (model GPT 5.6 Think). All data included in the app are from ",
         a(
-          "Continuous cell-type diversification in mouse visual cortex development",
-          href = "https://doi.org/10.1038/s41586-025-09644-1",
+          "Multiregional single-cell profiling reveals shared and specialized cellular vulnerability in Alzheimer’s disease",
+          href = "https://doi.org/10.64898/2026.07.01.734821",
           target = "_blank",
           rel = "noopener noreferrer",
           style = "color: white; font-weight: bold;"
@@ -1605,7 +1591,7 @@ ui <- function(request) {
         " and are freely available on ",
         a(
           "ABC Atlas Access",
-          href = "https://alleninstitute.github.io/abc_atlas_access/descriptions/Dev-Mouse-Vis-Cortex-dataset.html",
+          href = "https://brain-map.org/consortia/sea-ad",
           target = "_blank",
           rel = "noopener noreferrer",
           style = "color: white; font-weight: bold;"
@@ -2153,85 +2139,60 @@ server <- function(input, output, session) {
     if (is.null(gene_key) || is.na(gene_key)) {
       stop("No gene partition key was found for: ", gene_symbol)
     }
-    
-    gene_source <- bucket$path(
-      file.path(
-        s3_prefix,
-        "counts_by_gene",
-        paste0("gene=", gene_key)
-      )
-    )
-    
-    # open_dataset() deliberately supports one or many Parquet files in the
-    # selected gene partition. Detection counts are optional during migration.
+    gene_source <- bucket$path(file.path(
+      s3_prefix, "counts_by_gene", paste0("gene=", gene_key)
+    ))
     gene_dataset <- arrow::open_dataset(
-      gene_source,
-      format = "parquet",
-      partitioning = NULL,
+      gene_source, format = "parquet", partitioning = NULL,
       unify_schemas = FALSE
     )
-    has_detection_counts <- "number_of_cells_expressing" %in%
+    detection_column <- first_existing(
+      c("number_of_cells_expressing", "number_of_nuclei_expressing"),
       gene_dataset$schema$names
-    
-    if (has_detection_counts) {
-      gene_counts <- gene_dataset |>
-        select(sample_id, summed_counts, number_of_cells_expressing) |>
-        collect() |>
-        transmute(
-          sample_id = as.character(sample_id),
-          summed_counts = as.numeric(summed_counts),
-          number_of_cells_expressing = as.numeric(number_of_cells_expressing)
-        )
-    } else {
-      gene_counts <- gene_dataset |>
-        select(sample_id, summed_counts) |>
-        collect() |>
-        transmute(
-          sample_id = as.character(sample_id),
-          summed_counts = as.numeric(summed_counts),
-          number_of_cells_expressing = NA_real_
-        )
+    )
+    if (is.na(detection_column)) {
+      stop(
+        "The gene Parquet partition for ", gene_symbol,
+        " lacks number_of_cells_expressing or number_of_nuclei_expressing."
+      )
     }
-    
-    if (nrow(gene_counts) == 0) {
-      stop("No count data were found for gene: ", gene_symbol)
-    }
+    gene_counts <- gene_dataset |>
+      select(
+        sample_id, summed_counts,
+        number_of_cells_expressing = all_of(detection_column)
+      ) |>
+      collect() |>
+      transmute(
+        sample_id = as.character(sample_id),
+        summed_counts = as.numeric(summed_counts),
+        number_of_cells_expressing = as.numeric(number_of_cells_expressing)
+      )
+    if (nrow(gene_counts) == 0) stop("No count data were found for gene: ", gene_symbol)
     
     joined <- metadata |>
       inner_join(gene_counts, by = "sample_id") |>
-      filter(
-        is.finite(summed_counts),
-        is.finite(CPM_scaling_factor),
-        CPM_scaling_factor >= 0
-      )
-    
-    if (!"number_of_cells" %in% names(joined)) {
-      joined$number_of_cells <- NA_real_
-    }
-    
-    joined <- joined |>
       mutate(
-        number_of_cells = suppressWarnings(as.numeric(number_of_cells)),
-        number_of_cells_expressing = suppressWarnings(
-          as.numeric(number_of_cells_expressing)
-        ),
-        valid_detection_counts =
-          is.finite(number_of_cells) & number_of_cells > 0 &
-          is.finite(number_of_cells_expressing) &
-          number_of_cells_expressing >= 0 &
-          number_of_cells_expressing <= number_of_cells,
-        fraction_expressing = if_else(
-          valid_detection_counts,
-          number_of_cells_expressing / number_of_cells,
-          NA_real_
-        ),
+        number_of_cells = suppressWarnings(as.numeric(`Number of nuclei`)),
+        number_of_cells_expressing = suppressWarnings(as.numeric(number_of_cells_expressing))
+      ) |>
+      filter(
+        is.finite(summed_counts), is.finite(CPM_scaling_factor),
+        CPM_scaling_factor >= 0, is.finite(number_of_cells),
+        number_of_cells > 0, is.finite(number_of_cells_expressing),
+        number_of_cells_expressing >= 0,
+        number_of_cells_expressing <= number_of_cells
+      ) |>
+      mutate(
+        valid_detection_counts = TRUE,
+        fraction_expressing = number_of_cells_expressing / number_of_cells,
         CPM = summed_counts * CPM_scaling_factor
       )
-    
     if (nrow(joined) == 0) {
-      stop("Gene data were found, but no rows matched valid metadata and CPM scaling.")
+      stop(
+        "Gene data were found, but no rows had valid metadata, CPM scaling, ",
+        "and detection counts."
+      )
     }
-    
     gene_cache$set(cache_key, joined)
     joined
   }
@@ -2458,7 +2419,7 @@ server <- function(input, output, session) {
     c(
       minimum = 0,
       maximum = if (
-        identical(input$plot_type, "trajectory") &&
+        input$plot_type %in% c("trajectory", "heatmap", "violin") &&
         identical(input$trajectory_measure, "fraction")
       ) {
         1
@@ -3174,7 +3135,7 @@ server <- function(input, output, session) {
     )
     updateSelectInput(session, "plot_type", selected = "trajectory")
     updateSelectInput(session, "trajectory_measure", selected = "expression")
-    updateSelectInput(session, "progression_variable", selected = age_field)
+    updateSelectInput(session, "progression_variable", selected = default_progression)
     updateSelectInput(session, "facet_variable", selected = default_facet)
     updateSelectInput(session, "color_variable", selected = default_color)
     updateSelectInput(
@@ -3200,7 +3161,7 @@ server <- function(input, output, session) {
     updateSelectInput(session, "violin_facets_per_page", selected = "12")
     updateSelectInput(session, "violin_page", selected = "1")
     updateCheckboxInput(session, "show_violin_points", value = TRUE)
-    updateSelectInput(session, "facets_per_row", selected = "3")
+    updateSelectInput(session, "facets_per_row", selected = "4")
     updateSelectInput(session, "facet_row_height", selected = "300")
     updateSelectInput(session, "x_variable", selected = default_x)
     updateSelectInput(session, "second_dimension", selected = default_second)
@@ -3959,7 +3920,7 @@ server <- function(input, output, session) {
     } else if (settings$log_scale) {
       "ln(CPM + 1)"
     } else {
-      "Counts per million"
+      "CPM"
     }
     
     automatic_limits <- range(
@@ -4142,16 +4103,12 @@ server <- function(input, output, session) {
         data$plot_color_group <- "All data"
       }
       
-      progression <- progression_positions(
-        data,
-        settings$progression_variable,
-        maximum_step = 3
-      )
-      
-      data$progression_value <- unname(
-        progression$lookup[
-          as.character(data[[settings$progression_variable]])
-        ]
+      data$progression_value <- suppressWarnings(as.numeric(data[[settings$progression_variable]]))
+      cps_breaks <- scales::breaks_pretty(n = 6)(data$progression_value)
+      progression <- list(
+        breaks = cps_breaks,
+        labels = scales::label_number(accuracy = 0.01)(cps_breaks),
+        limits = range(data$progression_value, finite = TRUE)
       )
       
       plot_data <- data |>
@@ -4260,6 +4217,8 @@ server <- function(input, output, session) {
         theme(
           axis.text.x = element_text(angle = 45, hjust = 1),
           strip.text = element_text(face = "bold", size = 9),
+          panel.spacing.x = grid::unit(0.08, "lines"),
+          plot.margin = margin(5, 5, 5, 5),
           legend.position = if (color_enabled) "bottom" else "none"
         )
       
@@ -4346,9 +4305,12 @@ server <- function(input, output, session) {
         "Min. dot size must be nonnegative and smaller than Max. dot size."
       ))
       
-      use_fraction_expressing <-
+      validate(need(
         "fraction_expressing" %in% names(plot_data) &&
-        any(is.finite(plot_data$fraction_expressing))
+          any(is.finite(plot_data$fraction_expressing)),
+        "Fraction-expressing data are unavailable for this gene."
+      ))
+      use_fraction_expressing <- TRUE
       
       if (use_fraction_expressing) {
         size_break_fractions <- c(0, 0.25, 0.5, 0.75, 1)
@@ -4398,8 +4360,7 @@ server <- function(input, output, session) {
           geom_point(alpha = 0.9) +
           scale_size_continuous(
             name = "ln(CPM + 1)",
-            range = dot_size_limits,
-            oob = scales::squish
+            range = dot_size_limits
           ) +
           labs(caption = paste(
             "Fraction-expressing data are unavailable;",
