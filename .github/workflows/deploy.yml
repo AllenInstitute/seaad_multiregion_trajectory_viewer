@@ -1,23 +1,29 @@
-name: Deploy SEA-AD viewer
+name: Deploy SEA-AD Viewer
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+    paths:
+      - "code/shiny/**"
+      - ".github/workflows/deploy.yml"
+
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: seaad-shinyapps-production
-  cancel-in-progress: false
+  group: seaad-viewer
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-22.04
 
     env:
-      APP_DIR: code/shiny
+      RENV_PATHS_ROOT: ~/.cache/R/renv
+      RENV_CONFIG_REPOS_OVERRIDE: https://cloud.r-project.org
 
     steps:
       - name: Check out repository
@@ -26,72 +32,49 @@ jobs:
       - name: Set up R
         uses: r-lib/actions/setup-r@v2
         with:
-          r-version: renv
+          r-version: "4.3.3"
           use-public-rspm: true
-          working-directory: ${{ env.APP_DIR }}
 
-      - name: Install system libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential pkg-config \
-            libcurl4-openssl-dev libssl-dev libxml2-dev \
-            libuv1-dev libsnappy-dev
+      - name: Restore renv environment
+        uses: r-lib/actions/setup-renv@v2
+        with:
+          working-directory: code/shiny
+          cache-version: 2
 
-      - name: Restore packages and deploy
+      - name: Verify restored deployment environment
         shell: Rscript {0}
-        env:
-          SHINYAPPS_NAME: ${{ secrets.SHINYAPPS_NAME }}
-          SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
-          SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
         run: |
-          options(repos = c(CRAN = "https://cloud.r-project.org"))
+          renv::load("code/shiny")
 
-          app_dir <- normalizePath(Sys.getenv("APP_DIR"))
-          stopifnot(file.exists(file.path(app_dir, "app.R")))
-          stopifnot(file.exists(file.path(app_dir, "renv.lock")))
-
-          install.packages("renv")
-          renv::restore(project = app_dir, prompt = FALSE)
-          renv::load(project = app_dir)
-
-          options(repos = c(CRAN = "https://cloud.r-project.org"))
-
-          if (!requireNamespace("rsconnect", quietly = TRUE)) {
-            install.packages("rsconnect")
-          }
-
-          credentials <- Sys.getenv(c(
-            "SHINYAPPS_NAME",
-            "SHINYAPPS_TOKEN",
-            "SHINYAPPS_SECRET"
-          ))
-          if (any(!nzchar(credentials))) {
-            stop("Missing shinyapps.io repository secrets.")
-          }
-
-          rsconnect::setAccountInfo(
-            name = Sys.getenv("SHINYAPPS_NAME"),
-            token = Sys.getenv("SHINYAPPS_TOKEN"),
-            secret = Sys.getenv("SHINYAPPS_SECRET")
+          stopifnot(
+            requireNamespace("rsconnect", quietly = TRUE),
+            requireNamespace("shiny", quietly = TRUE)
           )
+
+          cat(
+            "rsconnect:",
+            as.character(packageVersion("rsconnect")),
+            "\n"
+          )
+
+          cat(
+            "shiny:",
+            as.character(packageVersion("shiny")),
+            "\n"
+          )
+
+      - name: Generate deployment manifest
+        shell: Rscript {0}
+        run: |
+          renv::load("code/shiny")
+          setwd("code/shiny")
+
+          options(
+            repos = c(
+              CRAN = "https://cloud.r-project.org"
+            )
+          )
+
+          app_files <- c(
+            "app.R",
           
-          renv::load(".")
-
-          stopifnot(requireNamespace("shiny", quietly = TRUE))
-
-          deps <- rsconnect::appDependencies(appDir = ".")
-          print(deps)
-          stopifnot("shiny" %in% deps$Package)
-
-          rsconnect::deployApp(
-            appDir = app_dir,
-            appPrimaryDoc = "app.R",
-            appMode = "shiny",
-            appName = "multiregion_gene_exploration",
-            account = Sys.getenv("SHINYAPPS_NAME"),
-            server = "shinyapps.io",
-            forceUpdate = TRUE,
-            launch.browser = FALSE,
-            dependencyResolution = "library"
-          )
