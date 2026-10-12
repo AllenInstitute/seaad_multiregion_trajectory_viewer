@@ -75,6 +75,14 @@ jobs:
             token = Sys.getenv("SHINYAPPS_TOKEN"),
             secret = Sys.getenv("SHINYAPPS_SECRET")
           )
+          
+          renv::load(".")
+
+          stopifnot(requireNamespace("shiny", quietly = TRUE))
+
+          deps <- rsconnect::appDependencies(appDir = ".")
+          print(deps)
+          stopifnot("shiny" %in% deps$Package)
 
           rsconnect::deployApp(
             appDir = app_dir,
