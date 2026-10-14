@@ -87,6 +87,39 @@ jobs:
           )
           app_dir <- normalizePath("code/shiny", mustWork = TRUE)
           
+          manifest_path <- file.path(app_dir, "manifest.json")
+
+          manifest <- jsonlite::fromJSON(
+            manifest_path,
+            simplifyVector = FALSE
+          )
+          
+          # Exclude the local R startup profile from the deployment bundle.
+          # This does not delete it from your repository.
+          manifest$files[[".Rprofile"]] <- NULL
+          
+          # Refresh checksums for the actual files being deployed.
+          # Preserve all recorded package versions and repository metadata.
+          for (file in names(manifest$files)) {
+            path <- file.path(app_dir, file)
+          
+            if (!file.exists(path)) {
+              stop("Manifest references a missing file: ", file)
+            }
+          
+            manifest$files[[file]]$checksum <- unname(
+              tools::md5sum(path)
+            )
+          }
+          
+          jsonlite::write_json(
+            manifest,
+            path = manifest_path,
+            auto_unbox = TRUE,
+            pretty = TRUE,
+            null = "null"
+)
+          
           # Keep CI deployment records separate from committed local records.
           record_dir <- tempfile("seaad-deployment-records-")
           dir.create(record_dir, recursive = TRUE)
