@@ -2,12 +2,10 @@ name: Deploy SEA-AD Viewer
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "code/shiny/**"
       - ".github/workflows/deploy.yml"
-
   workflow_dispatch:
 
 permissions:
@@ -15,12 +13,13 @@ permissions:
 
 concurrency:
   group: seaad-shinyapps-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-22.04
-
+    env:
+      RENV_CONFIG_AUTOLOADER_ENABLED: "false"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -31,55 +30,70 @@ jobs:
           r-version: "4.3.3"
           use-public-rspm: true
 
-      - name: Install rsconnect
-        shell: Rscript {0}
-        run: |
-          options(
-            repos = c(
-              CRAN = "https://cloud.r-project.org"
-            )
-          )
-
-          install.packages("rsconnect")
-
-          stopifnot(
-            requireNamespace("rsconnect", quietly = TRUE)
-          )
-
-      - name: Verify deployment bundle
+      - name: Install deployment system dependencies
         shell: bash
         run: |
-          test -f code/shiny/app.R
-          test -f code/shiny/manifest.json
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libcurl4-openssl-dev libssl-dev libxml2-dev
 
-          if grep -q "codeocean.internal" code/shiny/manifest.json; then
-            echo "ERROR: manifest.json contains codeocean.internal"
-            exit 1
-          fi
+      - name: Install and verify deployment tooling
+        shell: Rscript --vanilla {0}
+        run: |
+          options(repos = c(CRAN = "https://cloud.r-project.org"))
+          options(timeout = 600)
+          install.packages("rsconnect")
+          stopifnot(
+            requireNamespace("curl", quietly = TRUE),
+            requireNamespace("openssl", quietly = TRUE),
+            requireNamespace("rsconnect", quietly = TRUE),
+            "manifestPath" %in% names(formals(rsconnect::deployApp))
+          )
+          cat("rsconnect:", as.character(packageVersion("rsconnect")), "\n")
+
+      - name: Verify committed deployment manifest
+        shell: Rscript --vanilla {0}
+        run: |
+          app_dir <- normalizePath("code/shiny", mustWork = TRUE)
+          manifest_path <- file.path(app_dir, "manifest.json")
+          stopifnot(file.exists(file.path(app_dir, "app.R")), file.exists(manifest_path))
+          manifest <- jsonlite::fromJSON(manifest_path, simplifyVector = FALSE)
+          stopifnot(identical(manifest$metadata$appmode, "shiny"))
+          packages <- names(manifest$packages)
+          stopifnot("shiny" %in% packages)
+          files <- names(manifest$files)
+          stopifnot("app.R" %in% files)
+          missing <- files[!file.exists(file.path(app_dir, files))]
+          if (length(missing)) stop("Manifest references missing files: ", paste(missing, collapse = ", "))
+          manifest_text <- paste(readLines(manifest_path, warn = FALSE), collapse = "\n")
+          if (grepl("codeocean.internal", manifest_text, fixed = TRUE)) {
+            stop("Manifest contains an internal Code Ocean source. Regenerate it with public repositories.")
+          }
+          cat("Validated manifest with", length(packages), "packages and", length(files), "files.\n")
 
       - name: Deploy existing shinyapps.io application
-        shell: Rscript {0}
+        shell: Rscript --vanilla {0}
         env:
-          SHINYAPPS_NAME: ${{ secrets.SHINYAPPS_NAME }}
           SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
           SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
         run: |
-          credentials <- Sys.getenv(
-            c(
-              "SHINYAPPS_NAME",
-              "SHINYAPPS_TOKEN",
-              "SHINYAPPS_SECRET"
-            )
+          credentials <- Sys.getenv(c("SHINYAPPS_TOKEN", "SHINYAPPS_SECRET"))
+          if (any(!nzchar(credentials))) stop("Missing SHINYAPPS_TOKEN or SHINYAPPS_SECRET repository secret.")
+          rsconnect::setAccountInfo(
+            name = "sea-ad",
+            token = Sys.getenv("SHINYAPPS_TOKEN"),
+            secret = Sys.getenv("SHINYAPPS_SECRET")
           )
-
-          if (any(!nzchar(credentials))) {
-            stop("One or more shinyapps.io secrets are missing.")
-          }
-
-          app_dir <- normalizePath(
-            "code/shiny",
-            mustWork = TRUE
+          app_dir <- normalizePath("code/shiny", mustWork = TRUE)
+          rsconnect::deployApp(
+            appDir = app_dir,
+            manifestPath = file.path(app_dir, "manifest.json"),
+            appId = "17663389",
+            appName = "multiregion_gene_exploration",
+            account = "sea-ad",
+            server = "shinyapps.io",
+            forceUpdate = TRUE,
+            launch.browser = FALSE,
+            logLevel = "verbose"
           )
-
-          manifest_path <- file.path(
-   
