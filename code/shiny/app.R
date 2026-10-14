@@ -1639,8 +1639,6 @@ server <- function(input, output, session) {
       omit_zero_values = isolate(input$omit_zero_values),
       plot_type = isolate(input$plot_type),
       trajectory_measure = isolate(input$trajectory_measure),
-      # Semantic permalink aliases. These remain stable even though the UI label
-      # varies by plot type (Facet by vs. Vertical axis; Expr vs. Frac).
       facet_by = if (identical(isolate(input$plot_type), "trajectory")) {
         isolate(input$facet_variable)
       } else if (identical(isolate(input$plot_type), "violin")) {
@@ -1715,62 +1713,31 @@ server <- function(input, output, session) {
   
   restore_permalink_plot_controls <- function(saved) {
     if (is.null(saved)) return(invisible(NULL))
-    
     saved_plot_type <- as.character(saved$plot_type)[1]
     saved_facet <- saved$facet_by
     if (is.null(saved_facet)) {
-      saved_facet <- if (identical(saved_plot_type, "trajectory")) {
-        saved$facet_variable
-      } else if (identical(saved_plot_type, "violin")) {
-        saved$second_dimension
-      } else {
-        NULL
-      }
+      saved_facet <- if (identical(saved_plot_type, "trajectory")) saved$facet_variable else if (identical(saved_plot_type, "violin")) saved$second_dimension else NULL
     }
     saved_facet <- as.character(saved_facet)[1]
-    
     if (!is.na(saved_facet) && nzchar(saved_facet)) {
-      if (identical(saved_plot_type, "trajectory")) {
-        updateSelectInput(session, "facet_variable", selected = saved_facet)
-      } else if (identical(saved_plot_type, "violin")) {
-        updateSelectInput(session, "second_dimension", selected = saved_facet)
-      }
+      if (identical(saved_plot_type, "trajectory")) updateSelectInput(session, "facet_variable", selected = saved_facet)
+      if (identical(saved_plot_type, "violin")) updateSelectInput(session, "second_dimension", selected = saved_facet)
     }
-    
     saved_minimum <- saved$scale_minimum
     saved_maximum <- saved$scale_maximum
-    if (is.null(saved_minimum)) {
-      saved_minimum <- if (identical(saved_plot_type, "correlation")) {
-        saved$correlation_axis_minimum
-      } else {
-        saved$expression_minimum
-      }
-    }
-    if (is.null(saved_maximum)) {
-      saved_maximum <- if (identical(saved_plot_type, "correlation")) {
-        saved$correlation_axis_maximum
-      } else {
-        saved$expression_maximum
-      }
-    }
+    if (is.null(saved_minimum)) saved_minimum <- if (identical(saved_plot_type, "correlation")) saved$correlation_axis_minimum else saved$expression_minimum
+    if (is.null(saved_maximum)) saved_maximum <- if (identical(saved_plot_type, "correlation")) saved$correlation_axis_maximum else saved$expression_maximum
     saved_minimum <- suppressWarnings(as.numeric(saved_minimum)[1])
     saved_maximum <- suppressWarnings(as.numeric(saved_maximum)[1])
-    
-    if (is.finite(saved_minimum) && is.finite(saved_maximum) &&
-        saved_minimum < saved_maximum) {
+    if (is.finite(saved_minimum) && is.finite(saved_maximum) && saved_minimum < saved_maximum) {
       if (identical(saved_plot_type, "correlation")) {
-        updateNumericInput(
-          session, "correlation_axis_minimum", value = saved_minimum
-        )
-        updateNumericInput(
-          session, "correlation_axis_maximum", value = saved_maximum
-        )
+        updateNumericInput(session, "correlation_axis_minimum", value = saved_minimum)
+        updateNumericInput(session, "correlation_axis_maximum", value = saved_maximum)
       } else {
         updateNumericInput(session, "expression_minimum", value = saved_minimum)
         updateNumericInput(session, "expression_maximum", value = saved_maximum)
       }
     }
-    
     invisible(NULL)
   }
   
@@ -2588,13 +2555,37 @@ server <- function(input, output, session) {
     restored_filter_values(NULL)
     restore_permalink_plot_controls(saved)
     session$onFlushed(function() {
+      # Build from the controls, then overlay bookmark values directly. This
+      # avoids capturing the previous default while dynamic inputs are updating.
+      restored_settings <- capture_plot_settings()
+      restored_plot_type <- as.character(saved$plot_type)[1]
+      saved_facet <- saved$facet_by
+      if (is.null(saved_facet)) {
+        saved_facet <- if (identical(restored_plot_type, "trajectory")) saved$facet_variable else if (identical(restored_plot_type, "violin")) saved$second_dimension else NULL
+      }
+      saved_facet <- as.character(saved_facet)[1]
+      if (!is.na(saved_facet) && nzchar(saved_facet)) {
+        if (identical(restored_plot_type, "trajectory")) restored_settings$facet_variable <- saved_facet
+        if (identical(restored_plot_type, "violin")) restored_settings$second_dimension <- saved_facet
+      }
+      saved_minimum <- saved$scale_minimum
+      saved_maximum <- saved$scale_maximum
+      if (is.null(saved_minimum)) saved_minimum <- if (identical(restored_plot_type, "correlation")) saved$correlation_axis_minimum else saved$expression_minimum
+      if (is.null(saved_maximum)) saved_maximum <- if (identical(restored_plot_type, "correlation")) saved$correlation_axis_maximum else saved$expression_maximum
+      saved_minimum <- suppressWarnings(as.numeric(saved_minimum)[1])
+      saved_maximum <- suppressWarnings(as.numeric(saved_maximum)[1])
+      if (is.finite(saved_minimum) && is.finite(saved_maximum) && saved_minimum < saved_maximum) {
+        if (identical(restored_plot_type, "correlation")) {
+          restored_settings$correlation_axis_minimum <- saved_minimum
+          restored_settings$correlation_axis_maximum <- saved_maximum
+        } else {
+          restored_settings$expression_minimum <- saved_minimum
+          restored_settings$expression_maximum <- saved_maximum
+        }
+      }
       restore_plot_pending(FALSE)
-      bookmark_plot_trigger(isolate(bookmark_plot_trigger()) + 1L)
-      bslib::nav_select(
-        id = "main_tabs",
-        selected = "Plot gene of interest",
-        session = session
-      )
+      plot_settings(restored_settings)
+      bslib::nav_select(id = "main_tabs", selected = "Plot gene of interest", session = session)
       pending_bookmark_state(NULL)
     }, once = TRUE)
   }, priority = -100)
