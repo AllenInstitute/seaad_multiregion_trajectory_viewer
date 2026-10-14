@@ -86,8 +86,14 @@ jobs:
             secret = Sys.getenv("SHINYAPPS_SECRET")
           )
           app_dir <- normalizePath("code/shiny", mustWork = TRUE)
+          
+          # Keep CI deployment records separate from committed local records.
+          record_dir <- tempfile("seaad-deployment-records-")
+          dir.create(record_dir, recursive = TRUE)
+
           rsconnect::deployApp(
             appDir = app_dir,
+            recordDir = record_dir,
             manifestPath = file.path(app_dir, "manifest.json"),
             appId = "17663389",
             appName = "multiregion_gene_exploration",
