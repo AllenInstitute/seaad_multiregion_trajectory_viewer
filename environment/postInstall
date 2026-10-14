@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -e
-curl -fsSL "https://awscli.amazonaws.com/v2/install.sh" | bash -s -- --system
 
-rm -rf /opt/conda/lib/R/library/curl
+curl -fsSL "https://awscli.amazonaws.com/v2/install.sh" | bash -s -- --system
 
 export PATH="/opt/conda/bin:${PATH}"
 export LD_LIBRARY_PATH="/opt/conda/lib:${LD_LIBRARY_PATH:-}"
@@ -10,11 +9,26 @@ export PKG_CONFIG_PATH="/opt/conda/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 
 npm install --global kiwi-schema@0.5.0
 
-Rscript -e 'install.packages(
-  "curl",
-  repos = "https://cloud.r-project.org",
+rm -rf /opt/conda/lib/R/library/curl
+rm -rf /opt/conda/lib/R/library/openssl
+rm -rf /opt/conda/lib/R/library/00LOCK-curl
+rm -rf /opt/conda/lib/R/library/00LOCK-openssl
+
+Rscript -e '
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+install.packages(
+  c("curl", "openssl"),
+  lib = "/opt/conda/lib/R/library",
   type = "source"
-)'
+)
+
+library(curl, lib.loc = "/opt/conda/lib/R/library")
+library(openssl, lib.loc = "/opt/conda/lib/R/library")
+
+cat("R curl package:", as.character(packageVersion("curl")), "\n")
+cat("R openssl package:", as.character(packageVersion("openssl")), "\n")
+'
 
 RSTUDIO_CONFIG="/etc/rstudio/rserver.conf"
 

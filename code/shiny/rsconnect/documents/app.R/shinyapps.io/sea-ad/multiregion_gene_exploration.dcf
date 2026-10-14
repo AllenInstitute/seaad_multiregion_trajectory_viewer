@@ -5,6 +5,6 @@ account: sea-ad
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 17663389
-bundleId: 12681385
+bundleId: 12687035
 url: https://sea-ad.shinyapps.io/multiregion_gene_exploration/
 version: 1

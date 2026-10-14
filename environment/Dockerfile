@@ -1,4 +1,4 @@
-# hash:sha256:f362f6f63b681465a4b0e7a0bda9fb280463f6a8665a451acc3d45b9ca20fcd9
+# hash:sha256:261c519d203612a785226f7cd0ff8dee905d0d87655088718ad775ab6c2ce9f9
 ARG REGISTRY_HOST
 FROM $REGISTRY_HOST/codeocean/py-r:python3.12.4-R4.3.3-JupyterLab4.2.4-RStudiorstudio-server-2024.04.2-764-ubuntu22.04
 
@@ -16,7 +16,10 @@ RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys \
     && apt-get purge -y --autoremove software-properties-common \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
+        libcurl4-openssl-dev=7.81.0-1ubuntu1.29 \
+        libssl-dev=3.0.2-0ubuntu1.30 \
         pandoc=2.9.2.1-3ubuntu2 \
+        pkg-config=0.29.2-1ubuntu3 \
         shiny-server=1.5.23.1030 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -50,7 +53,7 @@ RUN Rscript -e 'remotes::install_version("shiny", "1.14.0")' \
     && Rscript -e 'remotes::install_version("shinycssloaders", "1.1.0")' \
     && Rscript -e 'remotes::install_version("cachem", "1.1.0")' \
     && Rscript -e 'remotes::install_version("DT", "0.34.0")' \
-    && Rscript -e 'remotes::install_version("renv", "1.3.0")' \
+    && Rscript -e 'remotes::install_version("renv", "1.3.1")' \
     && Rscript -e 'remotes::install_version("rsconnect", "1.10.1")' \
     && Rscript -e 'remotes::install_version("curl", "8.0.0")'
 

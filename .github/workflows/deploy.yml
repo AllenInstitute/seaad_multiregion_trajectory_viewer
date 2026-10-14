@@ -14,16 +14,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: seaad-viewer
+  group: seaad-shinyapps-production
   cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-22.04
-
-    env:
-      RENV_PATHS_ROOT: ~/.cache/R/renv
-      RENV_CONFIG_REPOS_OVERRIDE: https://cloud.r-project.org
 
     steps:
       - name: Check out repository
@@ -35,13 +31,7 @@ jobs:
           r-version: "4.3.3"
           use-public-rspm: true
 
-      - name: Restore renv environment
-        uses: r-lib/actions/setup-renv@v2
-        with:
-          working-directory: code/shiny
-          cache-version: 2
-
-      - name: Verify restored deployment environment
+      - name: Install rsconnect
         shell: Rscript {0}
         run: |
           options(
@@ -50,122 +40,46 @@ jobs:
             )
           )
 
-          if (!requireNamespace("renv", quietly = TRUE)) {
-            install.packages("renv")
-          }
-
-          renv::load(project = "code/shiny")
+          install.packages("rsconnect")
 
           stopifnot(
-            requireNamespace("rsconnect", quietly = TRUE),
-            requireNamespace("shiny", quietly = TRUE)
+            requireNamespace("rsconnect", quietly = TRUE)
           )
 
-          cat(
-            "renv:",
-            as.character(packageVersion("renv")),
-            "\n"
-          )
-
-          cat(
-            "rsconnect:",
-            as.character(packageVersion("rsconnect")),
-            "\n"
-          )
-
-          cat(
-            "shiny:",
-            as.character(packageVersion("shiny")),
-            "\n"
-          )
-
-          cat(
-            "Library paths:\n",
-            paste(.libPaths(), collapse = "\n"),
-            "\n"
-          )
-
-      - name: Generate deployment manifest
-        shell: Rscript {0}
-        run: |
-          options(
-            repos = c(
-              CRAN = "https://cloud.r-project.org"
-            )
-          )
-
-          if (!requireNamespace("renv", quietly = TRUE)) {
-            install.packages("renv")
-          }
-
-          renv::load(project = "code/shiny")
-          setwd("code/shiny")
-
-          stopifnot(
-            requireNamespace("rsconnect", quietly = TRUE),
-            requireNamespace("shiny", quietly = TRUE)
-          )
-
-          app_files <- c(
-            "app.R",
-            "abc_atlas_gene_urls.csv.gz",
-            "table_column_definitions.csv",
-            "renv.lock",
-            list.files(
-              "www",
-              recursive = TRUE,
-              full.names = TRUE
-            )
-          )
-
-          app_files <- unique(app_files[file.exists(app_files)])
-
-          cat(
-            "Files included in deployment:\n",
-            paste(app_files, collapse = "\n"),
-            "\n"
-          )
-
-          rsconnect::writeManifest(
-            appDir = ".",
-            appFiles = app_files,
-            appPrimaryDoc = "app.R",
-            dependencyResolution = "strict",
-            packageRepositoryResolutionR = "lax",
-            verbose = TRUE
-          )
-
-          manifest_text <- paste(
-            readLines(
-              "manifest.json",
-              warn = FALSE
-            ),
-            collapse = "\n"
-          )
-
-          stopifnot(
-            !grepl(
-              "codeocean.internal",
-              manifest_text,
-              fixed = TRUE
-            )
-          )
-
-      - name: Verify deployment files
+      - name: Verify deployment bundle
         shell: bash
         run: |
           test -f code/shiny/app.R
-          test -f code/shiny/renv.lock
           test -f code/shiny/manifest.json
-          test -f code/shiny/abc_atlas_gene_urls.csv.gz
-          test -f code/shiny/table_column_definitions.csv
-          test -d code/shiny/www
 
-      - name: Deploy to Posit Connect
-        uses: posit-dev/connect-actions/deploy@main
-        with:
-          connect-server: https://molgen-shiny.org
-          connect-api-key: ${{ secrets.CONNECT_API_KEY }}
-          content-guid: REPLACE_WITH_SEAAD_CONTENT_GUID
-          path: code/shiny
-          draft: false
+          if grep -q "codeocean.internal" code/shiny/manifest.json; then
+            echo "ERROR: manifest.json contains codeocean.internal"
+            exit 1
+          fi
+
+      - name: Deploy existing shinyapps.io application
+        shell: Rscript {0}
+        env:
+          SHINYAPPS_NAME: ${{ secrets.SHINYAPPS_NAME }}
+          SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
+          SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+        run: |
+          credentials <- Sys.getenv(
+            c(
+              "SHINYAPPS_NAME",
+              "SHINYAPPS_TOKEN",
+              "SHINYAPPS_SECRET"
+            )
+          )
+
+          if (any(!nzchar(credentials))) {
+            stop("One or more shinyapps.io secrets are missing.")
+          }
+
+          app_dir <- normalizePath(
+            "code/shiny",
+            mustWork = TRUE
+          )
+
+          manifest_path <- file.path(
+   

@@ -11,8 +11,20 @@
 		"apt": {
 			"packages": [
 				{
+					"name": "libcurl4-openssl-dev",
+					"version": "7.81.0-1ubuntu1.29"
+				},
+				{
+					"name": "libssl-dev",
+					"version": "3.0.2-0ubuntu1.30"
+				},
+				{
 					"name": "pandoc",
 					"version": "2.9.2.1-3ubuntu2"
+				},
+				{
+					"name": "pkg-config",
+					"version": "0.29.2-1ubuntu3"
 				},
 				{
 					"name": "shiny-server",
@@ -125,7 +137,7 @@
 				},
 				{
 					"name": "renv",
-					"version": "1.3.0"
+					"version": "1.3.1"
 				},
 				{
 					"name": "rsconnect",
