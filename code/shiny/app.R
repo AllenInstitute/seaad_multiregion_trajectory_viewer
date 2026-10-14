@@ -1554,7 +1554,7 @@ server <- function(input, output, session) {
   pending_bookmark_state <- reactiveVal(NULL)
   restored_filter_values <- reactiveVal(NULL)
   restore_plot_pending <- reactiveVal(FALSE)
-  bookmark_schema_version <- 1L
+  bookmark_schema_version <- 2L
   
   bookmark_excluded_inputs <- unique(c(
     "gene",
@@ -1639,6 +1639,25 @@ server <- function(input, output, session) {
       omit_zero_values = isolate(input$omit_zero_values),
       plot_type = isolate(input$plot_type),
       trajectory_measure = isolate(input$trajectory_measure),
+      # Semantic permalink aliases. These remain stable even though the UI label
+      # varies by plot type (Facet by vs. Vertical axis; Expr vs. Frac).
+      facet_by = if (identical(isolate(input$plot_type), "trajectory")) {
+        isolate(input$facet_variable)
+      } else if (identical(isolate(input$plot_type), "violin")) {
+        isolate(input$second_dimension)
+      } else {
+        NULL
+      },
+      scale_minimum = if (identical(isolate(input$plot_type), "correlation")) {
+        isolate(input$correlation_axis_minimum)
+      } else {
+        isolate(input$expression_minimum)
+      },
+      scale_maximum = if (identical(isolate(input$plot_type), "correlation")) {
+        isolate(input$correlation_axis_maximum)
+      } else {
+        isolate(input$expression_maximum)
+      },
       progression_variable = isolate(input$progression_variable),
       facet_variable = isolate(input$facet_variable),
       color_variable = isolate(input$color_variable),
@@ -1693,6 +1712,67 @@ server <- function(input, output, session) {
       restore_plot_pending(TRUE)
     }
   })
+  
+  restore_permalink_plot_controls <- function(saved) {
+    if (is.null(saved)) return(invisible(NULL))
+    
+    saved_plot_type <- as.character(saved$plot_type)[1]
+    saved_facet <- saved$facet_by
+    if (is.null(saved_facet)) {
+      saved_facet <- if (identical(saved_plot_type, "trajectory")) {
+        saved$facet_variable
+      } else if (identical(saved_plot_type, "violin")) {
+        saved$second_dimension
+      } else {
+        NULL
+      }
+    }
+    saved_facet <- as.character(saved_facet)[1]
+    
+    if (!is.na(saved_facet) && nzchar(saved_facet)) {
+      if (identical(saved_plot_type, "trajectory")) {
+        updateSelectInput(session, "facet_variable", selected = saved_facet)
+      } else if (identical(saved_plot_type, "violin")) {
+        updateSelectInput(session, "second_dimension", selected = saved_facet)
+      }
+    }
+    
+    saved_minimum <- saved$scale_minimum
+    saved_maximum <- saved$scale_maximum
+    if (is.null(saved_minimum)) {
+      saved_minimum <- if (identical(saved_plot_type, "correlation")) {
+        saved$correlation_axis_minimum
+      } else {
+        saved$expression_minimum
+      }
+    }
+    if (is.null(saved_maximum)) {
+      saved_maximum <- if (identical(saved_plot_type, "correlation")) {
+        saved$correlation_axis_maximum
+      } else {
+        saved$expression_maximum
+      }
+    }
+    saved_minimum <- suppressWarnings(as.numeric(saved_minimum)[1])
+    saved_maximum <- suppressWarnings(as.numeric(saved_maximum)[1])
+    
+    if (is.finite(saved_minimum) && is.finite(saved_maximum) &&
+        saved_minimum < saved_maximum) {
+      if (identical(saved_plot_type, "correlation")) {
+        updateNumericInput(
+          session, "correlation_axis_minimum", value = saved_minimum
+        )
+        updateNumericInput(
+          session, "correlation_axis_maximum", value = saved_maximum
+        )
+      } else {
+        updateNumericInput(session, "expression_minimum", value = saved_minimum)
+        updateNumericInput(session, "expression_maximum", value = saved_maximum)
+      }
+    }
+    
+    invisible(NULL)
+  }
   
   onBookmarked(function(url) {
     showModal(modalDialog(
@@ -2506,14 +2586,17 @@ server <- function(input, output, session) {
     req(filters_ready)
     
     restored_filter_values(NULL)
-    restore_plot_pending(FALSE)
-    bookmark_plot_trigger(isolate(bookmark_plot_trigger()) + 1L)
-    bslib::nav_select(
-      id = "main_tabs",
-      selected = "Plot gene of interest",
-      session = session
-    )
-    pending_bookmark_state(NULL)
+    restore_permalink_plot_controls(saved)
+    session$onFlushed(function() {
+      restore_plot_pending(FALSE)
+      bookmark_plot_trigger(isolate(bookmark_plot_trigger()) + 1L)
+      bslib::nav_select(
+        id = "main_tabs",
+        selected = "Plot gene of interest",
+        session = session
+      )
+      pending_bookmark_state(NULL)
+    }, once = TRUE)
   }, priority = -100)
   
   control_metadata <- reactive({
@@ -2779,6 +2862,7 @@ server <- function(input, output, session) {
     updateCheckboxInput(
       session, "log_scale", value = isTRUE(saved$log_scale)
     )
+    restore_permalink_plot_controls(saved)
     updateNumericInput(
       session,
       "expression_minimum",
