@@ -118,7 +118,6 @@ jobs:
             auto_unbox = TRUE,
             pretty = TRUE,
             null = "null"
-)
           
           # Keep CI deployment records separate from committed local records.
           record_dir <- tempfile("seaad-deployment-records-")
