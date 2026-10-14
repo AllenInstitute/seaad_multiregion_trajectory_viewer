@@ -1716,17 +1716,30 @@ server <- function(input, output, session) {
     saved_plot_type <- as.character(saved$plot_type)[1]
     saved_facet <- saved$facet_by
     if (is.null(saved_facet)) {
-      saved_facet <- if (identical(saved_plot_type, "trajectory")) saved$facet_variable else if (identical(saved_plot_type, "violin")) saved$second_dimension else NULL
+      saved_facet <- if (identical(saved_plot_type, "trajectory")) {
+        saved$facet_variable
+      } else if (identical(saved_plot_type, "violin")) {
+        saved$second_dimension
+      } else {
+        NULL
+      }
     }
     saved_facet <- as.character(saved_facet)[1]
     if (!is.na(saved_facet) && nzchar(saved_facet)) {
-      if (identical(saved_plot_type, "trajectory")) updateSelectInput(session, "facet_variable", selected = saved_facet)
-      if (identical(saved_plot_type, "violin")) updateSelectInput(session, "second_dimension", selected = saved_facet)
+      if (identical(saved_plot_type, "trajectory")) {
+        updateSelectInput(session, "facet_variable", selected = saved_facet)
+      } else if (identical(saved_plot_type, "violin")) {
+        updateSelectInput(session, "second_dimension", selected = saved_facet)
+      }
     }
     saved_minimum <- saved$scale_minimum
     saved_maximum <- saved$scale_maximum
-    if (is.null(saved_minimum)) saved_minimum <- if (identical(saved_plot_type, "correlation")) saved$correlation_axis_minimum else saved$expression_minimum
-    if (is.null(saved_maximum)) saved_maximum <- if (identical(saved_plot_type, "correlation")) saved$correlation_axis_maximum else saved$expression_maximum
+    if (is.null(saved_minimum)) {
+      saved_minimum <- if (identical(saved_plot_type, "correlation")) saved$correlation_axis_minimum else saved$expression_minimum
+    }
+    if (is.null(saved_maximum)) {
+      saved_maximum <- if (identical(saved_plot_type, "correlation")) saved$correlation_axis_maximum else saved$expression_maximum
+    }
     saved_minimum <- suppressWarnings(as.numeric(saved_minimum)[1])
     saved_maximum <- suppressWarnings(as.numeric(saved_maximum)[1])
     if (is.finite(saved_minimum) && is.finite(saved_maximum) && saved_minimum < saved_maximum) {
@@ -2555,18 +2568,27 @@ server <- function(input, output, session) {
     restored_filter_values(NULL)
     restore_permalink_plot_controls(saved)
     session$onFlushed(function() {
-      # Build from the controls, then overlay bookmark values directly. This
-      # avoids capturing the previous default while dynamic inputs are updating.
-      restored_settings <- capture_plot_settings()
+      # onFlushed is not a reactive consumer. isolate() is required because
+      # capture_plot_settings() reads several reactive input values.
+      restored_settings <- isolate(capture_plot_settings())
       restored_plot_type <- as.character(saved$plot_type)[1]
       saved_facet <- saved$facet_by
       if (is.null(saved_facet)) {
-        saved_facet <- if (identical(restored_plot_type, "trajectory")) saved$facet_variable else if (identical(restored_plot_type, "violin")) saved$second_dimension else NULL
+        saved_facet <- if (identical(restored_plot_type, "trajectory")) {
+          saved$facet_variable
+        } else if (identical(restored_plot_type, "violin")) {
+          saved$second_dimension
+        } else {
+          NULL
+        }
       }
       saved_facet <- as.character(saved_facet)[1]
       if (!is.na(saved_facet) && nzchar(saved_facet)) {
-        if (identical(restored_plot_type, "trajectory")) restored_settings$facet_variable <- saved_facet
-        if (identical(restored_plot_type, "violin")) restored_settings$second_dimension <- saved_facet
+        if (identical(restored_plot_type, "trajectory")) {
+          restored_settings$facet_variable <- saved_facet
+        } else if (identical(restored_plot_type, "violin")) {
+          restored_settings$second_dimension <- saved_facet
+        }
       }
       saved_minimum <- saved$scale_minimum
       saved_maximum <- saved$scale_maximum
