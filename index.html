@@ -1,0 +1,174 @@
+html
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SEA-AD Multiregion Gene Expression Viewer</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: sans-serif; display: flex; line-height: 1.6; background: #fff; }
+    .sidebar { width: 300px; min-width: 250px; background: #B3C1CD; padding: 20px; overflow-y: auto; height: 100vh; position: sticky; top: 0; border-right: 1px solid #ccc; }
+    .sidebar-logo { display: block; width: 210px; max-height: 145px; object-fit: contain; margin: 8px auto 14px; }
+    .sidebar ul { list-style: none; padding: 0; margin-top: 20px; }
+    .sidebar li { margin-bottom: 8px; }
+    .sidebar li a { text-decoration: none; color: #003057; display: block; padding: 2px; border-radius: 3px; transition: background-color .2s; }
+    .sidebar li a:hover { background: rgba(0,48,87,.1); }
+    .sidebar-h2 { font-weight: bold; font-size: 1em; }
+    .sidebar-h3 { font-weight: normal; font-size: .9em; padding-left: 20px; }
+    .sidebar-h4 { font-weight: normal; font-size: .85em; }
+    .main-content { flex-grow: 1; padding: 20px 40px; overflow-y: auto; height: 100vh; color: #333; }
+    h1, h2, h3, h4 { color: #003057; scroll-margin-top: 20px; border-bottom: 1px solid #eaecef; padding-bottom: .3em; margin: 24px 0 16px; }
+    h1 { border-bottom-width: 2px; }
+    h4 { border-bottom: none; margin-top: 18px; }
+    a { color: #0366d6; }
+    hr { height: 5px; border: none; background: #003057; width: 50%; margin: 24px auto 24px 0; }
+    code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 85%; padding: .2em .4em; background: rgba(27,31,35,.05); border-radius: 3px; }
+    pre { padding: 16px; overflow: auto; font-size: 85%; line-height: 1.45; background: #f6f8fa; border-radius: 3px; margin-bottom: 16px; }
+    pre code { padding: 0; background: transparent; }
+    ul, ol { margin: 0 0 14px 24px; }
+    li { margin-bottom: 4px; }
+    p { margin-bottom: 14px; }
+    blockquote { border-left: 4px solid #d0d7de; padding: 8px 16px; color: #57606a; margin: 0 0 16px; background: #f6f8fa; border-radius: 0 6px 6px 0; }
+    blockquote p { margin-bottom: 0; }
+    .page-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .page-header h1 { border: 0; margin: 0; padding: 0; flex: 1; }
+    .header-rule { border-bottom: 2px solid #eaecef; margin-bottom: 16px; padding-bottom: 8px; }
+    .header-logo { height: 55px; max-width: 150px; object-fit: contain; }
+    .launch-button { display: inline-block; padding: 10px 18px; margin: 6px 0 12px; background: #27ae60; color: #fff; text-decoration: none; border-radius: 5px; font-weight: 700; }
+    .launch-button:hover { background: #1f8f4e; }
+    .note { border-left: 4px solid #0dc5c1; background: #eefafa; padding: 10px 14px; margin-bottom: 16px; }
+    @media (max-width: 850px) { body { display: block; } .sidebar { position: relative; width: 100%; height: auto; } .main-content { height: auto; padding: 20px; } }
+  
+    .main-content { min-width: 0; }
+    a:focus-visible { outline: 3px solid #003057; outline-offset: 3px; }
+</style>
+</head>
+<body>
+<div class="sidebar">
+<h2 style="color:#003057">SEA-AD Multiregion Viewer</h2>
+<img alt="SEA-AD Multiregion Viewer Gene Expression Viewer logo" class="sidebar-logo" src="code/shiny/www/app_logo.png"/>
+<ul>
+<li class="sidebar-h4"><a href="#top">(jump to top)</a></li><li class="sidebar-h2"><a href="#getting-started">Getting started</a></li>
+<li class="sidebar-h2"><a href="#data">Data</a></li>
+<li class="sidebar-h3"><a href="#scientific-source">Scientific source</a></li>
+<li class="sidebar-h3"><a href="#pseudobulk">Pseudobulk expression</a></li>
+<li class="sidebar-h3"><a href="#parquet">Gene-level Parquet files</a></li>
+<li class="sidebar-h3"><a href="#metadata">Metadata and value sets</a></li>
+<li class="sidebar-h3"><a href="#aws">AWS storage and access</a></li>
+<li class="sidebar-h2"><a href="#using-the-viewer">Using the viewer</a></li>
+<li class="sidebar-h3"><a href="#gene">Gene</a></li>
+<li class="sidebar-h3"><a href="#filter-and-scale">Filter and scale</a></li>
+<li class="sidebar-h3"><a href="#plot-controls">Plot controls</a></li>
+<li class="sidebar-h2"><a href="#app-tabs">Application tabs</a></li>
+<li class="sidebar-h3"><a href="#select-gene">Select gene of interest</a></li>
+<li class="sidebar-h3"><a href="#plot-gene">Plot gene of interest</a></li>
+<li class="sidebar-h3"><a href="#trajectory">Trajectory</a></li>
+<li class="sidebar-h3"><a href="#heatmap">Heatmap</a></li>
+<li class="sidebar-h3"><a href="#dotplot">Dot plot</a></li>
+<li class="sidebar-h3"><a href="#violin">Violin plot</a></li>
+<li class="sidebar-h3"><a href="#correlation">Two-gene correlation</a></li>
+<li class="sidebar-h3"><a href="#statistics">Plot statistics</a></li>
+<li class="sidebar-h2"><a href="#running">Running the app</a></li>
+<li class="sidebar-h3"><a href="#requirements">Requirements</a></li>
+<li class="sidebar-h3"><a href="#setup">Local setup</a></li>
+<li class="sidebar-h3"><a href="#run-app">Run the app</a></li>
+<li class="sidebar-h2"><a href="#repo-structure">Repository structure</a></li>
+<li class="sidebar-h2"><a href="#citation">Citation</a></li>
+<li class="sidebar-h2"><a href="#feedback">Feedback and support</a></li>
+<li class="sidebar-h2"><a href="#howto">Building the app</a></li>
+<li class="sidebar-h2"><a href="#acknowledgements">Acknowledgements</a></li>
+</ul>
+</div>
+<main class="main-content">
+<div class="header-rule"><div class="page-header" id="top">
+<img alt="SEA-AD Multiregion Viewer logo" class="header-logo" src="code/shiny/www/app_logo.png"/>
+<h1>SEA-AD Multiregion Gene Expression Viewer</h1>
+<img alt="Allen Institute logo" class="header-logo" src="code/shiny/www/allen_institute_logo.svg"/>
+</div></div>
+<p>The SEA-AD Multiregion Gene Expression Viewer is an interactive R Shiny application for exploring pseudobulk gene expression and the fraction of nuclei expressing each gene across brain regions, cell types, donors, and Alzheimer's disease progression. Identify candidate genes in a sortable statistics table, retrieve selected genes from public AWS storage, apply simultaneous metadata filters, create five types of plots, and share configured analyses through bookmarked URLs.</p>
+<p>The viewer uses data from the <a href="https://brain-map.org/consortia/sea-ad" rel="noopener noreferrer" target="_blank">Seattle Alzheimer’s Disease Brain Cell Atlas (SEA-AD)</a>, with gene-specific links into the Allen Brain Cell Atlas and GeneCards.</p>
+<a class="launch-button" href="https://sea-ad.shinyapps.io/multiregion_gene_exploration/" rel="noopener noreferrer" target="_blank"><i class="fas fa-arrow-up-right-from-square"></i> Launch the interactive viewer</a><section aria-labelledby="getting-started"><h2 id="getting-started">Getting started</h2><p>Open an example below to load a gene and restore its filters and plot settings automatically.</p><h3><a href="https://sea-ad.shinyapps.io/multiregion_gene_exploration/?_values_&amp;viewer_state=%7B%22schema_version%22%3A2%2C%22gene%22%3A%22PTPRG%22%2C%22comparison_gene%22%3Anull%2C%22filter_fields%22%3A%22Supertype%22%2C%22stacked_filter_values%22%3A%7B%22Supertype%22%3A%22Micro-PVM_3-SEAAD%22%7D%2C%22omit_zero_values%22%3Afalse%2C%22plot_type%22%3A%22trajectory%22%2C%22trajectory_measure%22%3A%22expression%22%2C%22facet_by%22%3A%22Supertype%22%2C%22scale_minimum%22%3A0%2C%22scale_maximum%22%3A3.1%2C%22progression_variable%22%3A%22CPS_Global%22%2C%22facet_variable%22%3A%22Supertype%22%2C%22color_variable%22%3A%22Brain%20Region%22%2C%22smoother%22%3A%22lm%22%2C%22x_variable%22%3A%22Subclass%22%2C%22second_dimension%22%3A%22Brain%20Region%22%2C%22correlation_color_variable%22%3A%22Subclass%22%2C%22correlation_automatic_limits%22%3Anull%2C%22correlation_axis_minimum%22%3A0%2C%22correlation_axis_maximum%22%3A1%2C%22show_orthogonal_fit%22%3Atrue%2C%22correlation_size_minimum%22%3A1.5%2C%22correlation_size_maximum%22%3A7%2C%22log_scale%22%3Atrue%2C%22automatic_expression_limits%22%3Anull%2C%22expression_minimum%22%3A0%2C%22expression_maximum%22%3A3.1%2C%22dot_size_minimum%22%3A1%2C%22dot_size_maximum%22%3A9%2C%22show_heatmap_counts%22%3Atrue%2C%22show_points%22%3Atrue%2C%22show_fit_error%22%3Atrue%2C%22violin_display%22%3A%22violin%22%2C%22violin_facets_per_page%22%3A%2212%22%2C%22violin_page%22%3A%221%22%2C%22show_violin_points%22%3Atrue%2C%22facets_per_row%22%3A%223%22%2C%22facet_row_height%22%3A%22450%22%7D" rel="noopener noreferrer" target="_blank">Show the expression of PTPRG in Micro-PVM_3-SEAAD</a></h3><p>Travaglini et al. (2026) report that Alzheimer’s disease-associated microglia emerge early and increase more sharply later in disease, motivating comparisons of microglial gene expression across pathological progression and brain regions. This example lets you explore PTPRG within Micro-PVM_3-SEAAD along the global continuous pseudoprogression score, with observations and linear fits colored by brain region. <a href="https://doi.org/10.64898/2026.07.01.734821" rel="noopener noreferrer" target="_blank">Read the source study</a>.</p><p>The view displays ln(CP10K+1), retains zero-count observations, and includes 95% confidence bands for the fitted lines. It is an exploratory starting point, not a claim that PTPRG causes microglial changes.</p></section>
+<hr/>
+<h2 id="data"><i class="fas fa-database"></i> Data</h2>
+<h3 id="scientific-source">Scientific source</h3><p>The viewer uses the multiregion SEA-AD data resource associated with:</p><blockquote><p>Travaglini, K. J., Gabitto, M. I., Ding, Y., et al. <strong>Multiregional single-cell profiling reveals shared and specialized cellular vulnerability in Alzheimer’s disease.</strong> bioRxiv (2026), preprint, not peer reviewed. <a href="https://doi.org/10.64898/2026.07.01.734821" rel="noopener noreferrer" target="_blank">View the publication DOI</a>.</p></blockquote><p>The study extends SEA-AD across ten neo- and allocortical regions and relates cell-type changes to regional and global Alzheimer’s disease pathological burden. See the <a href="https://brain-map.org/consortia/sea-ad" rel="noopener noreferrer" target="_blank">SEA-AD website</a> for data and resource access.</p><h3 id="pseudobulk">Pseudobulk expression</h3><p>The source pseudobulk AnnData (<code>.h5ad</code>) objects contain summed counts by gene symbol. Each row is an aggregated observation with cell-type, donor, brain-region, and study annotations; <code>Number of nuclei</code> records the number of contributing nuclei. Gene partitions also contain the number of nuclei expressing each gene, used to calculate detection fractions.</p><p>Pseudobulk observations are aggregates, not individual nuclei. Multiple observations may come from the same donor.</p><h3 id="parquet">Gene-level Parquet files</h3><p>Expression is stored under <code>counts_by_gene/gene=&lt;gene_key&gt;/</code>. Each partition supplies <code>sample_id</code>, <code>summed_counts</code>, and a detection-count column named <code>number_of_cells_expressing</code> or <code>number_of_nuclei_expressing</code>. The current app requires detection counts and reads only the selected gene partition, joining it to metadata by <code>sample_id</code>.</p><p>The app displays counts per ten thousand total counts (CP10K), using the stored CPM scaling factor:</p><pre><code>CP10K = summed_counts × (CPM_scaling_factor / 100)
+fraction expressing = number_of_cells_expressing / Number of nuclei</code></pre><p>Expression can be displayed as CP10K or <code>ln(CP10K+1)</code>. This is library-size-normalized expression, not counts per 10,000 nuclei. For grouped dot plots, the fraction is calculated by summing expressing-nucleus counts and total nuclei before division.</p><h3 id="metadata">Metadata and value sets</h3><ul><li><code>obs_metadata.parquet</code> contains unique <code>sample_id</code> values and cell taxonomy, brain region, donor, study, clinical, neuropathology, and nucleus-count annotations.</li><li><code>gene_map.parquet</code> maps <code>gene_symbol</code> to partition keys in <code>gene_column</code>.</li><li><code>CPM_scaling.csv</code> supplies scaling factors in the same row and library order as observation metadata.</li><li><code>global_cps_multiregion.csv</code> supplies donor-level <code>CPS_Global</code>, <code>CPS_Global_ABeta</code>, and <code>CPS_Global_pTau</code>, joined from <code>donor_id</code> to <code>Donor ID</code>. These remain continuous numeric values. Unmatched scores remain missing, not zero; observations without a finite selected score are excluded from trajectory plots.</li><li><code>value_sets.csv</code> supplies categorical labels, order, and colors; unlisted values are retained with fallback colors.</li><li>Local <code>table_column_definitions.csv</code> supplies table-header descriptions, and <code>abc_atlas_gene_urls.csv.gz</code> supplies precomputed gene-specific ABC Atlas links. Both files are required at startup.</li><li>Optional <code>www/tokens.csv</code>, with <code>token</code>, <code>type</code>, and <code>name</code> columns, supplies the searchable glossary.</li></ul><p>The app also derives a <code>dementia</code> grouping from <code>Cognitive Status</code> for exploratory comparisons.</p><h3 id="aws">AWS storage and access</h3><p>The app anonymously reads metadata, CPS scores, value sets, and gene statistics at startup, then retrieves and caches requested gene partitions. Runtime AWS credentials are not required. The configured bucket is <code>sea-ad-single-cell-profiling</code> in <code>us-west-2</code>, under <code>Multiregion_2026/previous_objects/parquet/Multiregion_2026</code>. Browse the <a href="https://sea-ad-single-cell-profiling.s3.amazonaws.com/index.html#Multiregion_2026/previous_objects/parquet/" rel="noopener noreferrer" target="_blank">public Parquet resources</a>.</p><hr/>
+<h2 id="using-the-viewer"><i class="fas fa-computer-mouse"></i> Using the viewer</h2>
+<h3>Left control panel</h3>
+<p>The left panel controls gene retrieval, stacked filtering, expression scaling, and plot configuration. Filter and plot controls appear after the first gene has loaded.</p>
+<h3 id="gene">Gene</h3><ol><li>Type a gene symbol or select a row in the statistics table.</li><li>Select <strong>Get gene data</strong>.</li><li>The app retrieves the partition, joins metadata, calculates CP10K and fraction expressing, and caches the result.</li><li>Use <strong>Plot in ABC Atlas</strong> or <strong>GeneCards</strong> to explore the loaded gene in another resource.</li></ol><p>The selector starts empty with APOE as an example when available. Filter and plotting controls appear after a gene is loaded.</p><h3 id="filter-and-scale">Filter and scale</h3><ul><li><strong>Filter metadata</strong> adds simultaneous filters. Categorical selections within a field use OR; filters across fields use AND. Numeric fields, including CPS scores, use range sliders.</li><li><strong>Discard observations with zero counts</strong> removes zero-count observations for the selected gene. In two-gene correlation, both genes must have positive counts when this option is selected.</li><li>Under <strong>Additional plot options</strong>, <strong>Gene metric</strong> switches supported plots between expression and fraction expressing. Dot plots always use expression for color and fraction expressing for size.</li><li><strong>Plot ln(CP10K+1)</strong> toggles transformed expression for trajectory, heatmap, dot, and distribution plots. Expression-mode two-gene correlations always use ln(CP10K+1).</li><li><strong>Minimum Expr</strong>/<strong>Maximum Expr</strong>, or <strong>Minimum Frac</strong>/<strong>Maximum Frac</strong>, set display limits. Suggested limits update when data or relevant controls change; shared views restore their saved limits. There is no automatic-limits checkbox in the current interface.</li></ul><h3 id="plot-controls">Plot controls</h3>
+<ul>
+<li><strong>Plot type</strong> selects one of five visualizations.</li>
+<li>Plot-specific controls configure dimensions, facets, colors, trend lines, pagination, plot height, counts, and observation display. Hover over dropdown labels for concise control definitions.</li>
+<li><strong>Generate plot</strong> captures the current settings, creates the plot, and opens the plotting tab.</li>
+<li><strong>Share this view</strong> creates a URL bookmark containing the selected gene or genes, active filters, and plot configuration. Opening the link restores the state, retrieves the required gene data, and regenerates the plot.</li>
+<li><strong>Reset plot options</strong> restores defaults.</li>
+<li>The optional alphabetical glossary below the plot controls supports exact lookup of abbreviations used in cell-type and anatomical labels.</li>
+</ul>
+<hr/>
+<h2 id="app-tabs"><i class="fas fa-chart-bar"></i> Application tabs</h2>
+<h3 id="select-gene">Select gene of interest</h3><p>This tab contains a searchable, sortable gene-statistics table with numeric range filters and header tooltips. Selecting a row fills the Gene symbol selector; click <strong>Get gene data</strong> to retrieve it. GeneCards is accessed through the sidebar after loading a gene, not through table hyperlinks.</p><p>The columns are <code>gene_symbol</code>, <code>ln(mean_CP10K+1)</code>, <code>frac_expr</code>, <code>dementia_log2fc</code>, <code>dementia_frac_diff</code>, <code>max_ROI</code>, <code>log2fc_ROI</code>, <code>max_frac_ROI</code>, <code>frac_diff_ROI</code>, <code>max_subclass</code>, <code>log2fc_subclass</code>, <code>max_frac_subclass</code>, <code>frac_diff_subclass</code>, and <code>gene_type</code>. The app converts the source table’s log mean CPM column to log mean CP10K for display.</p><p>Exact-value multi-select filters below the table cover <code>gene_symbol</code>, <code>max_ROI</code>, <code>max_subclass</code>, and <code>gene_type</code>. Within-field selections use OR; across-field selections use AND.</p><div class="note"><strong>Important:</strong> These precomputed summaries guide exploration and do not replace the source study’s analyses.</div><h3 id="plot-gene">Plot gene of interest</h3>
+<p>The plotting tab supports five visualization types with matching plot-specific statistical summaries.</p>
+<h4 id="trajectory">Trajectory across disease</h4><p>Plot expression or fraction expressing against one of three continuous donor-level scores: <code>CPS_Global</code> (default), <code>CPS_Global_ABeta</code>, or <code>CPS_Global_pTau</code>. These are the available trajectory axes; developmental ages and other metadata are not progression-axis choices.</p><ul><li><strong>Facet by</strong> separates eligible cell-type or brain-region groups, or shows all data together.</li><li><strong>Color by</strong> overlays an eligible metadata field or uses one color. Facet and color choices are updated after filtering, with a 50-value limit for these controls.</li><li><strong>Trend line</strong> supports linear fit (default), LOESS, or no fit. <strong>Show 95% confidence (error of fit)</strong> toggles confidence bands.</li><li>Toggle individual observations and adjust facets per row, height per facet, facets per page, and page number. Tall plots scroll vertically.</li><li>Eligible facets receive a Spearman monotonic-trend test, with BH correction across eligible facets. Tests require at least five observations, three progression values, and variation in the selected metric.</li></ul><h4 id="heatmap">Heatmap of mean expression</h4>
+<p>The heatmap displays mean expression or mean fraction expressing for every occupied combination of two dimensions. Heatmap and dot plots default to Subclass on the horizontal axis and Brain Region on the vertical axis.</p>
+<ul>
+<li>Tile color represents the selected gene metric.</li>
+<li><strong>Show number of observations</strong> optionally labels each tile with its contributing observation count.</li>
+<li>The selected minimum and maximum apply to the fill scale.</li>
+<li>A sparse rook-neighbor Moran's I test with 999 permutations summarizes autocorrelation of the displayed metric across the current ordered matrix.</li>
+</ul>
+<h4 id="dotplot">Dot plot of mean expression</h4>
+<p>The dot plot uses the same two-dimensional grouping as the heatmap. Dot color represents mean expression, while dot area represents the weighted fraction of cells expressing the gene. <strong>Min. dot size</strong> and <strong>Max. dot size</strong> control the displayed size range without changing the underlying proportions; combinations with no data remain absent. The note below the plot reports separate sparse rook-neighbor Moran's I tests with 999 permutations for expression and fraction expressing.</p>
+<h4 id="violin">Violin plot with observations</h4>
+<p>The distribution plot shows expression or fraction-expressing distributions across horizontal-axis groups and second-dimension facets.</p>
+<ul>
+<li><strong>Distribution display</strong> switches between violin and boxplot representations.</li>
+<li><strong>Show individual observations</strong> toggles the overlaid pseudobulk points; white points and error bars show means and standard errors.</li>
+<li>Groups with fewer than two observations are omitted.</li>
+<li><strong>Facets per row</strong>, <strong>Height per facet</strong>, <strong>Facets per page</strong>, and <strong>Page Number</strong> limit the size of each rendered image while preserving the complete filtered analysis.</li>
+<li>Each eligible facet receives a Kruskal-Wallis test across horizontal-axis groups using the displayed metric; facet p-values are BH corrected across all eligible facets, not only the current page.</li>
+</ul>
+<h4 id="correlation">Two-gene correlation</h4>
+<p>This plot compares two separately retrieved genes across matched <code>sample_id</code> values after applying active filters. The selected metric can be <code>ln(CP10K+1)</code> or fraction expressing.</p>
+<ul>
+<li>Use <strong>Get 2nd gene data</strong> to retrieve the comparison gene through the same lazy reader and cache.</li>
+<li>Points can be colored by metadata and are sized by <code>log10(Number of nuclei)</code> when cell counts are available.</li>
+<li><strong>Min. dot size</strong> and <strong>Max. dot size</strong> adjust the correlation-point size range.</li>
+<li>Shared automatic or manual limits apply equally to both axes.</li>
+<li>The plot is square with equal axis spacing.</li>
+<li>An optional orthogonal total-least-squares line is invariant to swapping the x and y genes.</li>
+<li>Expression mode reports Pearson R; fraction-expressing mode reports Spearman rho. The corresponding p-value appears in the plot title.</li>
+</ul>
+<h4 id="statistics">Plot-specific exploratory statistics</h4>
+<ul>
+<li><strong>Trajectory:</strong> per-facet Spearman rho for monotonic progression in expression or fraction expressing, with BH correction across eligible facets.</li>
+<li><strong>Heatmap:</strong> sparse rook-neighbor Moran's I with a one-sided 999-permutation p-value for autocorrelation of the displayed metric.</li>
+<li><strong>Dot:</strong> separate sparse rook-neighbor Moran's I tests for mean expression and fraction expressing.</li>
+<li><strong>Violin or boxplot:</strong> per-facet Kruskal-Wallis tests of the displayed metric across horizontal-axis groups, with BH correction.</li>
+<li><strong>Two-gene correlation:</strong> Pearson correlation for expression and Spearman correlation for fraction expressing.</li>
+</ul>
+<div class="note"><strong>Interpretation:</strong> These statistics describe the currently selected gene, filters, dimensions, and displayed observations. Interactive testing across many genes and configurations is exploratory and introduces multiple-comparison considerations beyond within-plot BH corrections.</div>
+<hr/>
+<h2 id="running"><i class="fas fa-play-circle"></i> Running the app</h2>
+<p>Most users should use the <a href="https://sea-ad.shinyapps.io/multiregion_gene_exploration/" rel="noopener noreferrer" target="_blank">hosted viewer</a>. The repository also supports local development and reproducible deployment.</p>
+<h3 id="requirements">Requirements</h3><ul><li>R and the packages <code>shiny</code>, <code>bslib</code>, <code>arrow</code>, <code>dplyr</code>, <code>ggplot2</code>, <code>scales</code>, <code>shinycssloaders</code>, <code>cachem</code>, <code>DT</code>, and <code>jsonlite</code>;</li><li>S3 support in Arrow and internet access to the public data;</li><li>The required local table-definition and precomputed ABC Atlas URL files, plus the app’s <code>www/</code> assets.</li></ul><p>Use the project dependency records rather than the mouse viewer’s R version or another application’s lockfile.</p><h3 id="setup">Local setup</h3><ol><li>Download or clone the <a href="https://github.com/jeremymiller/multiregion_gene_exploration" rel="noopener noreferrer" target="_blank">multiregion_gene_exploration repository</a>.</li><li>Open the Shiny application directory containing <code>app.R</code>, <code>table_column_definitions.csv</code>, <code>abc_atlas_gene_urls.csv.gz</code>, and <code>www/</code>.</li><li>Restore the project’s dependencies from its <code>renv.lock</code> when using the renv-based environment.</li></ol><pre><code>install.packages("renv")
+renv::restore()</code></pre><h3 id="run-app">Run the app</h3><p>From the directory containing <code>app.R</code>:</p><pre><code>shiny::runApp(".")</code></pre><p>The hosted viewer is deployed to shinyapps.io. See the <a href="deployment_documentation.html">Rebuilding and Deployment Guide</a> for manual deployment and GitHub Actions configuration.</p><hr/>
+<h2 id="repo-structure"><i class="fas fa-folder-open"></i> Repository structure</h2><p>The landing page follows the mouse repository’s <code>code/shiny/</code> asset layout. The application bundle contains:</p><pre><code>code/shiny/
+    app.R
+    table_column_definitions.csv
+    abc_atlas_gene_urls.csv.gz
+    renv.lock
+    www/
+        app_logo.png
+        allen_institute_logo.svg
+        tokens.csv (optional)
+index.html
+deployment_documentation.html
+.github/workflows/deploy.yml</code></pre><p>Large pseudobulk sources, gene partitions, metadata, CPS scores, value sets, and summary statistics are stored externally rather than bundled with the Shiny application.</p><hr/>
+<h2 id="citation"><i class="fas fa-book"></i> Citation</h2><p>If you use the viewer or underlying multiregion data, cite:</p><blockquote><p>Travaglini, K. J., Gabitto, M. I., Ding, Y., et al. <strong>Multiregional single-cell profiling reveals shared and specialized cellular vulnerability in Alzheimer’s disease.</strong> bioRxiv (2026), preprint, not peer reviewed. <a href="https://doi.org/10.64898/2026.07.01.734821" rel="noopener noreferrer" target="_blank">View the publication DOI</a>.</p></blockquote><p>For the original SEA-AD atlas, see Gabitto, M. I., Travaglini, K. J., Rachleff, V. M., et al. <strong>Integrated multimodal cell atlas of Alzheimer’s disease.</strong> <em>Nature Neuroscience</em> (2024). <a href="https://www.nature.com/articles/s41593-024-01774-5" rel="noopener noreferrer" target="_blank">Read the original atlas paper</a>.</p><p>Please report the viewer version or Git commit and the data access date.</p><hr/>
+<h2 id="feedback"><i class="fas fa-comments"></i> Feedback and support</h2>
+<p>Questions, bug reports, and suggestions are welcome. <a href="https://github.com/jeremymiller/multiregion_gene_exploration/issues" rel="noopener noreferrer" target="_blank">Open a GitHub issue</a> or contact <a href="mailto:jeremym@alleninstitute.org">Jeremy Miller</a>.</p>
+<h2 id="howto"><i class="fas fa-screwdriver-wrench"></i> How the app was made</h2><p>The <a href="deployment_documentation.html">Rebuilding and Deployment Guide</a> documents the pseudobulk-to-Parquet workflow, detection counts, scaling factors, gene statistics, value sets, donor-level CPS joins, precomputed ABC Atlas gene links, AWS publication, local testing, shinyapps.io deployment, and GitHub Actions configuration.</p><h2 id="acknowledgements"><i class="fas fa-hands-clapping"></i> Acknowledgements</h2><p>We thank the research participants, tissue donors, families, and SEA-AD teams responsible for data generation, neuropathology, taxonomy, analysis, data access, and public resources. The app was developed by Jeremy Miller with coding assistance from Microsoft Copilot; beta testers include Irika Sinha and Kyle Travaglini.</p></main>
+</body>
+</html>
