@@ -434,7 +434,7 @@ value_set_for <- function(field, observed_values) {
   field_key <- normalize_value_set_field(field)
   
   specification <- value_sets |>
-    filter(.data$field_key == field_key) |>
+    filter(.data$field_key == .env$field_key) |>
     arrange(order)
   
   if (nrow(specification) == 0) {
@@ -1393,7 +1393,7 @@ ui <- function(request) {
         style = "font-size: 1.2rem; margin: 1px 0 0px; color: white;"
       ),
       p(
-        "App developed by Jeremy Miller, coded with help from Microsoft Copilot (model GPT 5.6 Think). All data included in the app are from ",
+        "App developed by Jeremy Miller, coded with help from Microsoft Copilot (models GPT-5.6 Think and GPT-6.1 Sol). All data included in the app are from ",
         a(
           "Multiregional single-cell profiling reveals shared and specialized cellular vulnerability in Alzheimer’s disease",
           href = "https://doi.org/10.64898/2026.07.01.734821",
@@ -1491,6 +1491,35 @@ ui <- function(request) {
           div(
             class = "expression-title",
             textOutput("plot_title")
+          ),
+          conditionalPanel(
+            condition = "output.plot_pagination_visible",
+            div(
+              class = "plot-page-navigation",
+              style = paste(
+                "display: flex; align-items: center; flex-wrap: wrap;",
+                "gap: 10px; padding: 8px 12px; background: #f3f4f6;"
+              ),
+              conditionalPanel(
+                condition = "output.plot_has_previous_page",
+                actionButton(
+                  "plot_previous_page",
+                  "Go to previous page",
+                  icon = icon("chevron-left"),
+                  class = "btn-outline-primary btn-sm"
+                )
+              ),
+              textOutput("plot_page_label", inline = TRUE),
+              conditionalPanel(
+                condition = "output.plot_has_next_page",
+                actionButton(
+                  "plot_next_page",
+                  "Go to next page",
+                  icon = icon("chevron-right"),
+                  class = "btn-outline-primary btn-sm"
+                )
+              )
+            )
           ),
           div(
             class = "plot-wrapper",
@@ -1599,6 +1628,8 @@ server <- function(input, output, session) {
     "get_comparison_gene_data",
     "make_plot",
     "make_plot_bottom",
+    "plot_previous_page",
+    "plot_next_page",
     "reset_defaults",
     "share_view",
     "bookmarked_url",
@@ -3285,6 +3316,116 @@ server <- function(input, output, session) {
     )
   })
   
+  # Navigation uses the generated plot settings, not unsubmitted controls.
+  plot_pagination <- reactive({
+    settings <- plot_settings()
+    if (
+      is.null(settings) ||
+      !settings$plot_type %in% c("trajectory", "violin") ||
+      !identical(input$plot_type, settings$plot_type)
+    ) {
+      return(NULL)
+    }
+    data <- filtered_data()
+    field <- if (identical(settings$plot_type, "trajectory")) {
+      settings$facet_variable
+    } else {
+      settings$second_dimension
+    }
+    if (is.null(field) || identical(field, "none") || !field %in% names(data)) {
+      return(NULL)
+    }
+    
+    # Match the observations used to select facets in each plot renderer.
+    if (identical(settings$plot_type, "trajectory")) {
+      progression <- suppressWarnings(as.numeric(data[[settings$progression_variable]]))
+      data <- data[
+        is.finite(progression) & is.finite(data$plotted_expression) &
+          !is.na(data[[field]]),
+        , drop = FALSE
+      ]
+    } else {
+      data <- data |>
+        filter(
+          !is.na(.data[[settings$x_variable]]),
+          !is.na(.data[[field]]),
+          is.finite(plotted_expression)
+        ) |>
+        group_by(across(all_of(c(settings$x_variable, field)))) |>
+        filter(n() >= 2) |>
+        ungroup()
+    }
+    number_of_facets <- length(field_levels(data, field))
+    per_page_value <- as.character(settings$violin_facets_per_page)
+    if (length(per_page_value) != 1L || is.na(per_page_value)) {
+      per_page_value <- "12"
+    }
+    per_page <- if (identical(per_page_value, "all")) {
+      max(1L, number_of_facets)
+    } else {
+      parsed <- suppressWarnings(as.integer(per_page_value))
+      if (!is.finite(parsed)) parsed <- 12L
+      max(1L, parsed)
+    }
+    page_count <- max(1L, ceiling(number_of_facets / per_page))
+    page <- suppressWarnings(as.integer(settings$violin_page))
+    if (length(page) != 1L || !is.finite(page)) page <- 1L
+    page <- min(max(page, 1L), page_count)
+    list(page = page, page_count = page_count)
+  })
+  
+  output$plot_pagination_visible <- reactive({
+    pagination <- plot_pagination()
+    !is.null(pagination) && pagination$page_count > 1L
+  })
+  output$plot_has_previous_page <- reactive({
+    pagination <- plot_pagination()
+    !is.null(pagination) && pagination$page > 1L
+  })
+  output$plot_has_next_page <- reactive({
+    pagination <- plot_pagination()
+    !is.null(pagination) && pagination$page < pagination$page_count
+  })
+  for (output_id in c(
+    "plot_pagination_visible", "plot_has_previous_page", "plot_has_next_page"
+  )) {
+    outputOptions(output, output_id, suspendWhenHidden = FALSE)
+  }
+  output$plot_page_label <- renderText({
+    pagination <- plot_pagination()
+    req(pagination, pagination$page_count > 1L)
+    paste0("Page ", pagination$page, " of ", pagination$page_count)
+  })
+  
+  change_plot_page <- function(offset) {
+    pagination <- isolate(plot_pagination())
+    settings <- isolate(plot_settings())
+    if (is.null(pagination) || is.null(settings) || pagination$page_count <= 1L) {
+      return(invisible(NULL))
+    }
+    page <- min(max(pagination$page + offset, 1L), pagination$page_count)
+    if (page == pagination$page) return(invisible(NULL))
+    updateSelectInput(
+      session,
+      "violin_page",
+      choices = setNames(
+        seq_len(pagination$page_count),
+        paste0("Page ", seq_len(pagination$page_count), " of ", pagination$page_count)
+      ),
+      selected = as.character(page)
+    )
+    # Change only the page of the generated plot; preserve its other settings.
+    settings$violin_page <- as.integer(page)
+    plot_settings(settings)
+    invisible(NULL)
+  }
+  observeEvent(input$plot_previous_page, {
+    change_plot_page(-1L)
+  }, ignoreInit = TRUE)
+  observeEvent(input$plot_next_page, {
+    change_plot_page(1L)
+  }, ignoreInit = TRUE)
+  
   plot_pixel_height <- reactive({
     settings <- plot_settings()
     req(settings)
@@ -4162,6 +4303,8 @@ server <- function(input, output, session) {
             vars(.data[[settings$facet_variable]]),
             scales = "fixed",
             ncol = settings$facets_per_row,
+            dir = "h",
+            as.table = TRUE,
             axes = "all_x",
             axis.labels = "all_x",
             drop = TRUE
@@ -4438,6 +4581,8 @@ server <- function(input, output, session) {
             vars(.data[[settings$second_dimension]]),
             scales = "fixed",
             ncol = settings$facets_per_row,
+            dir = "h",
+            as.table = TRUE,
             axes = "all_x",
             axis.labels = "all_x",
             drop = TRUE
