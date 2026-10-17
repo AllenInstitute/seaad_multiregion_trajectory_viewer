@@ -1353,7 +1353,7 @@ ui <- function(request) {
           "align-items: stretch; margin-bottom: 1px;"
         ),
         tags$a(
-          href = "mailto:jeremym@alleninstitute.org?body=''&subject='SEA-AD multiregion app comments",
+          href = 'mailto:jeremym@alleninstitute.org?subject=SEA-AD Multiregion Gene Expression Viewer',
           icon("envelope", lib = "font-awesome"),
           tags$span("PROVIDE FEEDBACK"),
           style = paste(
@@ -1367,7 +1367,7 @@ ui <- function(request) {
           )
         ),
         tags$a(
-          href = "https://github.com/AllenInstitute/seaad-developing-vis-app/",
+          href = "https://github.com/AllenInstitute/seaad_multiregion_trajectory_viewer/",
           target = "_blank",
           rel = "noopener noreferrer",
           icon("code", lib = "font-awesome"),
