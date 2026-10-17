@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEA-AD Multiregion Viewer: Build and Deployment Protocol</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: sans-serif; display: flex; line-height: 1.6; background: #fff; }
+    .sidebar { width: 300px; min-width: 250px; background: #B3C1CD; padding: 20px; overflow-y: auto; height: 100vh; position: sticky; top: 0; border-right: 1px solid #ccc; }
+    .sidebar-logo { display: block; width: 210px; max-height: 145px; object-fit: contain; margin: 8px auto 14px; }
+    .sidebar ul { list-style: none; padding: 0; margin-top: 20px; }
+    .sidebar li { margin-bottom: 8px; }
+    .sidebar li a { text-decoration: none; color: #003057; display: block; padding: 2px; border-radius: 3px; transition: background-color .2s; }
+    .sidebar li a:hover { background: rgba(0,48,87,.1); }
+    .sidebar-h2 { font-weight: bold; font-size: 1em; }
+    .sidebar-h3 { font-weight: normal; font-size: .9em; padding-left: 20px; }
+    .sidebar-h4 { font-weight: normal; font-size: .85em; }
+    .main-content { flex-grow: 1; padding: 20px 40px; overflow-y: auto; height: 100vh; color: #333; }
+    h1, h2, h3, h4 { color: #003057; scroll-margin-top: 20px; border-bottom: 1px solid #eaecef; padding-bottom: .3em; margin: 24px 0 16px; }
+    h1 { border-bottom-width: 2px; }
+    h4 { border-bottom: none; margin-top: 18px; }
+    a { color: #0366d6; }
+    hr { height: 5px; border: none; background: #003057; width: 50%; margin: 24px auto 24px 0; }
+    code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 85%; padding: .2em .4em; background: rgba(27,31,35,.05); border-radius: 3px; }
+    pre { padding: 16px; overflow: auto; font-size: 85%; line-height: 1.45; background: #f6f8fa; border-radius: 3px; margin-bottom: 16px; }
+    pre code { padding: 0; background: transparent; }
+    ul, ol { margin: 0 0 14px 24px; }
+    li { margin-bottom: 4px; }
+    p { margin-bottom: 14px; }
+    blockquote { border-left: 4px solid #d0d7de; padding: 8px 16px; color: #57606a; margin: 0 0 16px; background: #f6f8fa; border-radius: 0 6px 6px 0; }
+    blockquote p { margin-bottom: 0; }
+    .page-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .page-header h1 { border: 0; margin: 0; padding: 0; flex: 1; }
+    .header-rule { border-bottom: 2px solid #eaecef; margin-bottom: 16px; padding-bottom: 8px; }
+    .header-logo { height: 55px; max-width: 150px; object-fit: contain; }
+    .launch-button { display: inline-block; padding: 10px 18px; margin: 6px 0 12px; background: #27ae60; color: #fff; text-decoration: none; border-radius: 5px; font-weight: 700; }
+    .launch-button:hover { background: #1f8f4e; }
+    .note { border-left: 4px solid #0dc5c1; background: #eefafa; padding: 10px 14px; margin-bottom: 16px; }
+    @media (max-width: 850px) { body { display: block; } .sidebar { position: relative; width: 100%; height: auto; } .main-content { height: auto; padding: 20px; } }
+  
+    .main-content { min-width: 0; }
+    a:focus-visible { outline: 3px solid #003057; outline-offset: 3px; }
+
+    table { width: 100%; border-collapse: collapse; margin: 0 0 16px; }
+    th, td { border: 1px solid #d0d7de; padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: #f6f8fa; color: #003057; }
+    .protocol-steps > li { margin-bottom: 14px; padding-left: 4px; }
+    .checkpoint { border-left: 4px solid #27ae60; background: #f0f8f3; padding: 10px 14px; margin-bottom: 16px; }
+    .protocol-meta { color: #57606a; }
+    .table-wrap { overflow-x: auto; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    a, code { overflow-wrap: anywhere; }
+    @media print { body { display: block; } .sidebar { display: none; } .main-content { height: auto; overflow: visible; padding: 0; } h2, h3 { break-after: avoid; } tr, .note, .checkpoint { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<nav class="sidebar" aria-label="Protocol contents">
+<h2>SEA-AD Multiregion Viewer</h2>
+<img class="sidebar-logo" src="code/shiny/www/app_logo.png" alt="SEA-AD Multiregion Viewer logo">
+<ul>
+<li class="sidebar-h4"><a href="#top">(jump to top)</a></li>
+<li class="sidebar-h2"><a href="#overview">Protocol overview</a></li>
+<li class="sidebar-h2"><a href="#configuration">1. Establish the project configuration</a></li>
+<li class="sidebar-h2"><a href="#environment">2. Create the Code Ocean environment</a></li>
+<li class="sidebar-h2"><a href="#inputs">3. Prepare the source data</a></li>
+<li class="sidebar-h2"><a href="#pseudobulk">4. Generate the pseudobulk H5AD</a></li>
+<li class="sidebar-h2"><a href="#parquet">5. Generate gene-partitioned Parquet files</a></li>
+<li class="sidebar-h2"><a href="#metadata">6. Generate statistics and categorical metadata</a></li>
+<li class="sidebar-h2"><a href="#aws">7. Publish the data to AWS</a></li>
+<li class="sidebar-h2"><a href="#links">8. Generate ABC Atlas links</a></li>
+<li class="sidebar-h2"><a href="#application">9. Configure and test the application</a></li>
+<li class="sidebar-h2"><a href="#deployment">10. Create and deploy the hosted application</a></li>
+<li class="sidebar-h2"><a href="#automation">11. Configure automated deployment</a></li>
+<li class="sidebar-h2"><a href="#documentation">12. Publish the documentation and archive the release</a></li>
+<li class="sidebar-h4"><a href="index.html">Return to user guide</a></li>
+</ul>
+</nav>
+<main class="main-content" id="top">
+<div class="page-header header-rule">
+<h1>Build and Deployment Protocol</h1>
+<img class="header-logo" src="code/shiny/www/allen_institute_logo.svg" alt="Allen Institute logo">
+</div>
+<h2 class="protocol-meta">SEA-AD Multiregion Gene Expression Viewer</h2>
+<hr>
+<section aria-labelledby="overview">
+<h2 id="overview"><i class="fas fa-compass" aria-hidden="true"></i> Protocol overview</h2>
+<p>This protocol describes the construction and deployment of the SEA-AD Multiregion Gene Expression Viewer from regional single-nucleus RNA-sequencing count matrices and associated ABC Atlas metadata. The procedure generates library-by-Supertype pseudobulk data, prepares a gene-partitioned AWS back end, deploys an R Shiny application, and publishes its documentation.</p>
+<p>Complete the sections in order. Run the named scripts from the project repository; select the inputs and outputs specified below. Directory trees describe file organization, not executable commands.</p>
+<p><a href="https://github.com/AllenInstitute/seaad_multiregion_trajectory_viewer">Go to the GitHub source</a> · <a href="index.html">Return to the user guide</a></p>
+<h3>Starting materials</h3>
+<ul><li>ABC Atlas Access regional raw-count H5AD files, nucleus and library metadata, donor metadata, and the matching SEA-AD taxonomy release.</li><li>Code Ocean, GitHub, and AWS accounts with permission to create a Capsule, repository, and S3 bucket.</li><li>A web browser. R, Python, Node.js, and publishing tools are installed in the Code Ocean environment during the procedure.</li></ul>
+<p>A shinyapps.io account is created during the protocol. Donor-level continuous pseudoprogression scores (CPS) are downloaded as a separate published metadata resource; they are not calculated from the RNA count matrices.</p>
+<h3>Products</h3>
+<ul><li>A versioned pseudobulk H5AD containing summed counts and expressing-nucleus counts.</li><li>A complete app-ready data directory published to a new S3 bucket.</li><li>A deployed Shiny application in the operator’s shinyapps.io account.</li><li>A GitHub Pages site containing the user guide and this protocol.</li></ul>
+</section>
+<hr>
+<section aria-labelledby="configuration">
+<h2 id="configuration"><i class="fas fa-sliders" aria-hidden="true"></i> 1. Establish the project configuration</h2>
+<ol class="protocol-steps" start="1">
+<li>Fork the <a href="https://github.com/AllenInstitute/seaad_multiregion_trajectory_viewer">application repository</a> into the GitHub account that will maintain the new deployment. Record the source commit identifier. Keep the Shiny deployment workflow disabled until the new application has been created and its deployment target configured.</li>
+<li>Create a project configuration record in the repository. Record the ABC Atlas manifest, included regions, source commit, Capsule identifier, S3 bucket, AWS region, S3 prefix, shinyapps.io account name, application name, and application ID. Populate the hosting fields when they are assigned.</li>
+<li>Use <code>releases/20260711/manifest.json</code> for the ABC Atlas release. Include AnG, DFC, FI, HIP, ITG, LEC, MEC, MTG, STG, and V1C from <code>SEA-AD-Multiregion-10X</code>, with annotations from <code>SEA-AD-Multiregion-taxonomy</code>. Keep expression and taxonomy inputs tied to this release.</li>
+<li>Use <code>SEAAD_multiregion/v1</code> as the deployment prefix in the new S3 bucket and <code>multiregion_gene_exploration</code> as the new Shiny application name. Use the operator’s own bucket and hosting account throughout the protocol.</li>
+</ol>
+<div class="note"><strong>Critical step.</strong> The S3 prefix is the directory containing <code>counts_by_gene/</code>, <code>metadata/</code>, and <code>statistics/</code>. Use the same prefix in the upload destination and application configuration. Do not reuse an application ID or account name from another deployment.</div>
+
+</section>
+<hr>
+<section aria-labelledby="environment">
+<h2 id="environment"><i class="fas fa-gears" aria-hidden="true"></i> 2. Create the Code Ocean environment</h2>
+<ol class="protocol-steps" start="5">
+<li>Connect the GitHub account to Code Ocean using its Git-provider integration. Select <strong>New Capsule → Clone from Git</strong> and enter the HTTPS address of the fork. Confirm that <code>code/</code>, <code>environment/</code>, and <code>metadata/</code> are present.</li>
+<li>Build the Capsule environment using <code>environment/Dockerfile</code>, <code>environment/postInstall</code>, and <code>requirements.txt</code>. Launch a Cloud Workstation with RStudio and a terminal. Retain the environment definitions in version control.</li>
+<li>Verify the Python dependencies <code>abc_atlas_access</code>, <code>anndata</code>, <code>h5py</code>, <code>numpy</code>, <code>pandas</code>, <code>scipy</code>, <code>pyarrow</code>, and <code>pybiomart</code>. Install missing dependencies in the Capsule environment and rebuild it.</li>
+<li>Restore the R environment from <code>code/shiny/renv.lock</code>. Verify Shiny, bslib, Arrow with S3 support, dplyr, ggplot2, scales, shinycssloaders, cachem, DT, and jsonlite. Install rsconnect for publishing. Install Node.js and the <code>kiwi-schema</code> package for ABC Atlas URL generation.</li>
+<li>Allocate writable storage for the ABC Atlas cache and regional intermediates. Set the cache directory to <code>/scratch/abc_atlas_cache</code>, the intermediate directory to <code>/scratch/seaad_pseudobulk</code>, and the durable output directory to <code>/results</code>. Select compute resources appropriate for the regional input matrices and monitor storage and memory during processing.</li>
+<li>Keep credentials in account integrations or secret storage. Exclude AWS credentials, shinyapps.io tokens, saved R workspaces, raw matrices, and local package libraries from Git commits and application bundles.</li>
+</ol>
+<div class="checkpoint"><strong>Checkpoint.</strong> Start a clean R session and Python process. Confirm that the required packages load, the scratch directories are writable, and Arrow can initialize an S3 filesystem.</div>
+
+</section>
+<hr>
+<section aria-labelledby="inputs">
+<h2 id="inputs"><i class="fas fa-database" aria-hidden="true"></i> 3. Prepare the source data</h2>
+<ol class="protocol-steps" start="11">
+<li>Place the ABC Atlas Access files in the cache directory, retaining the manifest-defined directory structure and filenames. Configure ABC Atlas Access to use that cache and the selected manifest.</li>
+<li>Confirm that every selected region has a raw-count H5AD matrix. Retain the nucleus-level metadata, library metadata, donor metadata, and taxonomy membership and annotation tables required by <code>code/create_seaad_pseudobulk.py</code>. Do not substitute log-normalized expression matrices.</li>
+<li>Download <a href="https://sea-ad-single-cell-profiling.s3.amazonaws.com/Multiregion_2026/previous_objects/parquet/metadata/global_cps_multiregion.csv">global_cps_multiregion.csv</a> and retain it as a local processing input. Record its source and checksum. Verify the columns <code>donor_id</code>, <code>CPS_Global</code>, <code>CPS_Global_ABeta</code>, and <code>CPS_Global_pTau</code>.</li>
+<li>Check that CPS donor identifiers are nonmissing and unique and that score columns are numeric. Compare the identifiers with donor metadata as strings. Preserve missing scores as missing values.</li>
+</ol>
+<div class="note"><strong>Critical step.</strong> CPS is an independent study-derived measurement. Do not replace missing scores with zero or estimate them from the expression matrices. Obtain the published CPS resource before proceeding with the complete trajectory-enabled application.</div>
+
+</section>
+<hr>
+<section aria-labelledby="pseudobulk">
+<h2 id="pseudobulk"><i class="fas fa-layer-group" aria-hidden="true"></i> 4. Generate the pseudobulk H5AD</h2>
+<ol class="protocol-steps" start="15">
+<li>Run <code>code/create_seaad_pseudobulk.py</code> with the selected manifest, all ten regions, the cache and scratch directories defined above, and output <code>/results/SEA_AD_Multiregion_library_supertype_pseudobulk.h5ad</code>. Use a matrix chunk size of 1,024 observations and a metadata chunk size of 250,000 rows.</li>
+<li>Process each regional matrix independently. Join nucleus identifiers to library and donor metadata and to the matching Class, Subclass, and Supertype annotations. Normalize identifier types before joining. Review the processing log for unmatched or excluded nuclei.</li>
+<li>Aggregate assigned nuclei by <code>library_label × Supertype</code>. For each gene, sum raw counts and count nuclei with raw expression greater than zero. Record the total number of contributing nuclei for each pseudobulk observation.</li>
+<li>Combine the regional pseudobulk objects after confirming a consistent gene axis. Reopen the final H5AD and verify the matrix and metadata contract below.</li>
+<li>Capture the final H5AD and processing log as a versioned Code Ocean Data Asset. Record the source manifest, source commit, region list, and checksum. Attach the asset to the Capsule at <code>/data/pseudobulk</code> for subsequent steps.</li>
+</ol>
+<h3>Required H5AD structure</h3>
+<ul><li><code>X</code>: summed raw counts, with pseudobulk observations in rows and genes in columns.</li><li><code>layers["number_of_nuclei_expressing"]</code>: expressing-nucleus counts with the same dimensions and ordering as <code>X</code>.</li><li><code>obs</code>: unique observation identifiers, <code>library_label</code>, <code>Number of nuclei</code>, <code>Donor ID</code>, <code>Brain Region</code>, <code>Class</code>, <code>Subclass</code>, <code>Supertype</code>, and <code>Cognitive Status</code>, together with available study, clinical, and quality-control annotations.</li><li><code>var</code>: gene symbols and source identifiers aligned to the count matrix. Preserve distinct matrix keys for duplicated gene symbols.</li></ul>
+<div class="checkpoint"><strong>Checkpoint.</strong> Counts are nonnegative integers. Nucleus totals are positive. Expressing-nucleus counts lie between zero and the corresponding nucleus total. Observation identifiers are unique, and the gene order is identical in the count and detection matrices.</div>
+
+</section>
+<hr>
+<section aria-labelledby="parquet">
+<h2 id="parquet"><i class="fas fa-file-code" aria-hidden="true"></i> 5. Generate gene-partitioned Parquet files</h2>
+<ol class="protocol-steps" start="20">
+<li>Run <code>code/create_seaad_parquet.py</code>. Set the input to <code>/data/pseudobulk/SEA_AD_Multiregion_library_supertype_pseudobulk.h5ad</code>, the output to <code>/results/SEAAD_parquet_by_gene</code>, and the CPS source to the local CSV downloaded in Step 13. Use a gene block size of 64 and Zstandard compression.</li>
+<li>Write <code>metadata/obs_metadata.parquet</code> with one unique <code>sample_id</code> per pseudobulk observation. Preserve the observation order and its <code>library_label</code>. Write <code>metadata/gene_map.parquet</code> with the mapping from <code>gene_symbol</code> to <code>gene_column</code>.</li>
+<li>Calculate each pseudobulk row’s total raw counts across all genes. Write <code>metadata/CPM_scaling.csv</code> with <code>library_label</code> and <code>CPM_scaling_factor</code>, retaining exactly the observation-metadata row order.</li>
+<li>Write one <code>counts_by_gene/gene=&lt;gene_column&gt;/data.parquet</code> file per gene. Retain <code>sample_id</code>, <code>summed_counts</code>, and <code>number_of_nuclei_expressing</code>, including zero-valued observations. Use the partition keys generated by the converter.</li>
+<li>Confirm that the converter copied the CPS CSV to <code>metadata/global_cps_multiregion.csv</code> and wrote its data manifest. Validate representative gene files against the H5AD before proceeding.</li>
+</ol>
+<h3>Expression and detection calculations</h3>
+<pre>CPM_scaling_factor = 1,000,000 / total raw counts in the pseudobulk row
+CP10K = summed_counts × CPM_scaling_factor / 100
+Displayed log expression = ln(CP10K + 1)
+Fraction expressing = number_of_nuclei_expressing / Number of nuclei</pre>
+<div class="note"><strong>Critical step.</strong> Expression normalization uses the total raw counts, not the number of nuclei. Detection fractions use nucleus totals. The converter generates CPM scaling as part of this step; do not calculate a second scaling table from selected genes.</div>
+<div class="checkpoint"><strong>Checkpoint.</strong> Every gene-map key resolves to a partition. Gene files have the expected sample identifiers. The scaling table and observation metadata have identical row counts and <code>library_label</code> sequences.</div>
+
+</section>
+<hr>
+<section aria-labelledby="metadata">
+<h2 id="metadata"><i class="fas fa-table" aria-hidden="true"></i> 6. Generate statistics and categorical metadata</h2>
+<ol class="protocol-steps" start="25">
+<li>Run <code>code/create_seaad_statistics.py</code> with the mounted pseudobulk H5AD as input and <code>/results/SEAAD_parquet_by_gene/statistics/seaad_gene_summary_statistics.csv</code> as output. Use the same count and detection matrices used for Parquet conversion.</li>
+<li>Calculate CPM-based expression summaries for the complete dataset, Dementia versus No dementia groups, Brain Region, and Subclass. Calculate detection fractions from pooled expressing-nucleus counts divided by pooled nucleus totals. Retain the script’s fold-change and fraction-difference definitions.</li>
+<li>Annotate gene biotypes using the script’s human BioMart lookup. Retain the gene-to-biotype mapping with the processing record and verify that each annotation is aligned to its gene symbol. Validate the required output columns below.</li>
+<li>Run <code>code/create_seaad_value_sets.py</code> with the same pseudobulk H5AD and output <code>/results/SEAAD_parquet_by_gene/metadata/value_sets.csv</code>. Use the columns <code>label</code>, <code>field</code>, <code>color_hex_triplet</code>, and <code>order</code>.</li>
+<li>Join the Class, Subclass, and Supertype labels in the value-set table to the matching ABC Atlas taxonomy annotation tables. Populate their taxonomy colors and order from that release. Preserve the script-generated clinical category order and colors for other fields. Exclude continuous variables from categorical value sets.</li>
+<li>Validate the CPS table against <code>obs_metadata.parquet</code>. Join <code>donor_id</code> to <code>Donor ID</code> without changing observation order or duplicating observations. Retain unmatched scores as missing values and record their frequency.</li>
+</ol>
+<h3>Required statistics columns</h3>
+<pre>gene_symbol
+ln(mean_CPM+1)
+frac_expr
+dementia_log2fc
+dementia_frac_diff
+max_ROI
+log2fc_ROI
+max_frac_ROI
+frac_diff_ROI
+max_subclass
+log2fc_subclass
+max_frac_subclass
+frac_diff_subclass
+gene_type</pre>
+<div class="note"><strong>Critical step.</strong> Keep <code>ln(mean_CPM+1)</code> in the source CSV. The application converts this summary to CP10K for display. Keep fraction differences as proportions, without multiplying them by 100.</div>
+<div class="checkpoint"><strong>Checkpoint.</strong> The statistics file has the required schema and gene coverage. Value-set field/label pairs are unique and match observation metadata. The three CPS columns remain numeric.</div>
+
+</section>
+<hr>
+<section aria-labelledby="aws">
+<h2 id="aws"><i class="fas fa-cloud-arrow-up" aria-hidden="true"></i> 7. Publish the data to AWS</h2>
+<ol class="protocol-steps" start="31">
+<li>Create a new S3 bucket in <code>us-west-2</code> with a globally unique name. Dedicate it to the public application data. Record the bucket name and <code>SEAAD_multiregion/v1</code> prefix in the project configuration.</li>
+<li>Create an upload identity with permissions limited to the application bucket and required upload operations. Configure authenticated AWS access in Code Ocean using secret storage. Do not embed credentials in the application.</li>
+<li>Assemble the complete directory shown below. Validate filenames, partition coverage, sample alignment, detection-count bounds, CPS joins, and statistics before upload. Capture this directory as a versioned Code Ocean Data Asset.</li>
+<li>Upload the contents of <code>/results/SEAAD_parquet_by_gene</code> directly beneath <code>SEAAD_multiregion/v1</code>. Preserve the directory hierarchy. Compare local and remote object counts and sizes and read back representative files.</li>
+<li>Configure a bucket policy granting anonymous <code>s3:GetObject</code> access only to objects under the application prefix. Grant <code>s3:ListBucket</code> for the application-prefix listings required by Arrow dataset discovery. Do not grant anonymous write or delete permissions. Adjust Block Public Access settings only as required for this public-data policy.</li>
+<li>Test access without AWS credentials. Read each metadata file and the statistics CSV, then list and open a representative gene partition using Arrow. Keep private data outside this bucket.</li>
+</ol>
+<h3>Local output and S3 prefix contents</h3>
+<pre>SEAAD_parquet_by_gene/
+  counts_by_gene/
+    gene=&lt;gene_column&gt;/
+      data.parquet
+    ...
+  metadata/
+    obs_metadata.parquet
+    gene_map.parquet
+    CPM_scaling.csv
+    value_sets.csv
+    global_cps_multiregion.csv
+  statistics/
+    seaad_gene_summary_statistics.csv
+  manifest.json</pre>
+<div class="note"><strong>Critical step.</strong> Public read access exposes the selected objects to anyone on the internet. Publish only the study data and metadata approved for public distribution. The deployed app uses anonymous S3 reads; upload credentials are not part of its runtime bundle.</div>
+<div class="checkpoint"><strong>Checkpoint.</strong> All startup resources and representative gene partitions can be read anonymously from the new bucket and prefix.</div>
+
+</section>
+<hr>
+<section aria-labelledby="links">
+<h2 id="links"><i class="fas fa-link" aria-hidden="true"></i> 8. Generate ABC Atlas links</h2>
+<ol class="protocol-steps" start="37">
+<li>Open ABC Atlas and select the SEA-AD multiregion dataset. Select <code>PTPRG</code> as the displayed gene and configure the intended starting view. Copy its complete share URL and record that URL together with the starting gene <code>PTPRG</code>.</li>
+<li>Load <code>code/shiny/abc_atlas_gene_url_function.R</code> in the preparation environment. Supply <code>abc_atlas_schema_kiwi.txt</code>, the recorded starting URL, the starting gene, and the gene-symbol list from <code>gene_map.parquet</code>. Generate a URL for each gene using the helper’s gene-substitution procedure.</li>
+<li>Write a gzip-compressed CSV to <code>code/shiny/abc_atlas_gene_urls.csv.gz</code>. Put the gene symbol in the first column and its URL in the second column. Include a header and omit row names or index columns.</li>
+<li>Check coverage against the gene map and remove duplicate symbol entries. Open links for PTPRG, APOE, and another gene and confirm that each opens the intended gene and SEA-AD view. Retain the seed URL, starting gene, schema, and generation settings with the release record.</li>
+</ol>
+<div class="checkpoint"><strong>Checkpoint.</strong> The compressed lookup has two columns, nonempty URLs, and entries for the app’s gene symbols. Node.js is used for preparation; the deployed app reads the CSV lookup.</div>
+
+</section>
+<hr>
+<section aria-labelledby="application">
+<h2 id="application"><i class="fas fa-flask" aria-hidden="true"></i> 9. Configure and test the application</h2>
+<ol class="protocol-steps" start="41">
+<li>Open <code>code/shiny/app.R</code>. Set its S3 bucket, AWS region, and data prefix to the values recorded in Step 31. Confirm that its metadata, scaling, CPS, statistics, and gene-partition paths resolve beneath that prefix.</li>
+<li>Assemble the application directory shown below. Keep <code>table_column_definitions.csv</code> aligned to the statistics schema, with columns <code>column_names</code> and <code>column_definitions</code>. Include the generated ABC Atlas lookup and the static assets.</li>
+<li>Start a clean R session in <code>code/shiny</code> and launch the application. Verify startup without a saved workspace. Confirm that no scientific-data path points to a local scratch directory or mounted Data Asset.</li>
+<li>Load PTPRG and APOE and compare selected values with the generated Parquet files. Verify CP10K, log expression, detection fractions, and zero-valued observations. Test gene-table sorting, filtering, and selection.</li>
+<li>Test trajectory, heatmap, dot, distribution, and two-gene correlation plots. Confirm Subclass and Brain Region defaults for heatmap and dot plots, pooled detection fractions for dot sizes, and continuous numeric CPS axes for trajectories. Verify that missing CPS values are excluded from the selected trajectory axis rather than placed at zero.</li>
+<li>Test combined metadata filters, facets, plot sizing, distribution pagination, expression limits, comparison genes, and external links. Create bookmarks for a filtered trajectory, a faceted distribution, and a two-gene plot; reopen each in a fresh session and verify restoration.</li>
+</ol>
+<h3>Application directory</h3>
+<pre>code/shiny/
+  app.R
+  table_column_definitions.csv
+  abc_atlas_gene_urls.csv.gz
+  renv.lock
+  manifest.json
+  www/
+    app_logo.png
+    allen_institute_logo.svg
+    tokens.csv</pre>
+<div class="checkpoint"><strong>Checkpoint.</strong> The app starts from a clean session, reads the new S3 back end anonymously, and passes the plot and bookmark checks. Record the tested source commit and package environment.</div>
+
+</section>
+<hr>
+<section aria-labelledby="deployment">
+<h2 id="deployment"><i class="fas fa-rocket" aria-hidden="true"></i> 10. Create and deploy the hosted application</h2>
+<ol class="protocol-steps" start="47">
+<li>Create a shinyapps.io account using the GitHub sign-in option. Choose an available account name and record it. Select a hosting plan and application resources appropriate for the tested app.</li>
+<li>Open the account’s token settings and obtain a publishing token and secret. Configure rsconnect in the Code Ocean R environment using that account name and credentials. Store credentials outside the repository.</li>
+<li>Generate <code>code/shiny/manifest.json</code> from the tested R environment. Include <code>app.R</code>, table definitions, the compressed ABC Atlas lookup, and required <code>www/</code> files. Verify package versions and public package sources. Exclude local libraries, credentials, raw data, saved workspaces, and development-only activation files.</li>
+<li>Deploy <code>code/shiny</code> with rsconnect to the new account using application name <code>multiregion_gene_exploration</code>. Create a new application for this first deployment; do not supply an application ID belonging to another account.</li>
+<li>Record the assigned application ID and hosted URL. Review the build and runtime logs. Open the hosted app in a fresh browser session and repeat the startup, gene retrieval, plot, external-link, and bookmark checks.</li>
+<li>Commit the tested application files, <code>renv.lock</code>, and deployment manifest. Keep the data-generation manifest in the data output directory separate from the Shiny deployment manifest.</li>
+</ol>
+<div class="checkpoint"><strong>Checkpoint.</strong> The hosted application reads the new S3 location and reproduces the validated local views. The release record contains its account name, app name, app ID, URL, and source commit.</div>
+
+</section>
+<hr>
+<section aria-labelledby="automation">
+<h2 id="automation"><i class="fas fa-code-branch" aria-hidden="true"></i> 11. Configure automated deployment</h2>
+<ol class="protocol-steps" start="53">
+<li>Open <code>.github/workflows/deploy.yml</code> in the fork. Set the publishing account, application name, and application ID to the values assigned in Section 10. Retain <code>code/shiny</code> as the application directory.</li>
+<li>Add <code>SHINYAPPS_TOKEN</code> and <code>SHINYAPPS_SECRET</code> as GitHub Actions repository secrets. Use credentials authorized to publish to the new account.</li>
+<li>Configure the workflow to publish using the committed deployment manifest. Validate its Shiny application mode, package records, and file inventory. Refresh bundled-file checksums while preserving the tested package metadata. Exclude the local <code>.Rprofile</code> from the runtime bundle.</li>
+<li>Validate YAML and embedded R syntax. Enable manual dispatch and deployment on pushes to <code>main</code> affecting <code>code/shiny/**</code> or the deployment workflow. Enable the workflow and run a manual deployment.</li>
+<li>Review the Actions log and verify that the existing new application was updated rather than duplicated. Repeat the hosted startup and bookmark checks. Commit future package changes together with an updated lockfile and regenerated deployment manifest.</li>
+</ol>
+<div class="checkpoint"><strong>Checkpoint.</strong> A manual GitHub Actions run successfully updates the application created in Section 10. No production account identifiers or credentials from another deployment remain in the workflow.</div>
+
+</section>
+<hr>
+<section aria-labelledby="documentation">
+<h2 id="documentation"><i class="fas fa-book" aria-hidden="true"></i> 12. Publish the documentation and archive the release</h2>
+<ol class="protocol-steps" start="58">
+<li>Place <code>index.html</code> and <code>deployment_documentation.html</code> in the repository root. Keep relative links between the two pages. Retain the image paths <code>code/shiny/www/app_logo.png</code> and <code>code/shiny/www/allen_institute_logo.svg</code>.</li>
+<li>Update repository links to the fork and application launch links to the new hosted URL. In each example bookmark, replace only the application base address; preserve the complete encoded <code>viewer_state</code> query string.</li>
+<li>In GitHub repository settings, open <strong>Pages</strong>. Select <strong>Deploy from a branch</strong>, choose <code>main</code> and the repository root, and save. Open the published site and test navigation, images, application links, and every Getting started example.</li>
+<li>Archive the source commit, environment definitions, lockfile, deployment manifest, ABC Atlas manifest, input checksums, CPS resource, URL-generation seed, Data Asset versions, S3 location, and validation record. Record the hosted app URL and documentation URL.</li>
+</ol>
+<div class="checkpoint"><strong>Checkpoint.</strong> The public user guide and protocol are accessible, all example links target the new app, and the release record identifies every input and deployment component.</div>
+
+</section>
+</main>
+</body>
+</html>
