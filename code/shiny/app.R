@@ -924,6 +924,19 @@ ui <- function(request) {
         object-fit: contain;
         margin: 0 auto;
       }
+      
+      
+      .sidebar-section {
+        margin-top: 10px;
+      }
+      
+      .sidebar-section > .section-major:first-child,
+      .sidebar-section > .section-minor:first-child {
+        border-top: 0;
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+      }
+      
       .seaad-logo-link { width: 180px; display: flex; align-items: center; }
       .seaad-logo { height: 52px; max-width: 175px; object-fit: contain; }
       .seaad-title {
@@ -1164,8 +1177,31 @@ ui <- function(request) {
           )
         )
       ),
-      helpText(
-        "Choose a gene, retrieve its data, select plot options, and generate the plot."
+      div(
+        class = "gene-controls",
+        tags$label("Getting started", style = "font-size: 1rem; margin-bottom: 4px;"),
+        div(
+          class = "resource-button-row",
+          style = "grid-template-columns: 1fr 1fr; margin-top: 0;",
+          tags$a(
+            href = "Overview.mp4",
+            target = "_blank",
+            rel = "noopener noreferrer",
+            class = "btn sidebar-secondary",
+            style = "font-size: 0.8rem !important;",
+            icon("video"),
+            tags$span("Watch the overview")
+          ),
+          tags$a(
+            href = "https://alleninstitute.github.io/seaad_multiregion_trajectory_viewer/",
+            target = "_blank",
+            rel = "noopener noreferrer",
+            class = "btn sidebar-secondary",
+            style = "font-size: 0.8rem !important;",
+            icon("lightbulb"),
+            tags$span("Learn more")
+          )
+        )
       ),
       div(
         class = "gene-controls",
@@ -1205,212 +1241,195 @@ ui <- function(request) {
         condition = "output.gene_loaded",
         div(
           class = "compact-controls",
-          h4("Filter and scale", class = "section-major"),
-          selectizeInput(
-            "filter_fields",
-            "Filter metadata",
-            choices = filter_fields,
-            selected = character(),
-            multiple = TRUE,
-            options = list(
-              placeholder = "Add one or more filters",
-              maxOptions = 1000,
-              closeAfterSelect = TRUE,
-              plugins = list("remove_button")
-            )
-          ),
           div(
-            class = "stacked-filter-panel",
-            uiOutput("stacked_filter_controls")
-          ),
-          checkboxInput(
-            "omit_zero_values",
-            "Discard observations with zero counts",
-            FALSE
-          ),
-          h4("Plot gene data", class = "section-minor"),
-          selectInput("plot_type", "Plot type", choices = c(
-            "Trajectory across disease" = "trajectory",
-            "Dot plot of expression" = "dot",
-            "Heatmap of expression" = "heatmap",
-            "Violin plot with observations" = "violin",
-            "Two-gene correlation" = "correlation"
-          ), selected = "trajectory"),
-          conditionalPanel(condition = "input.plot_type == 'trajectory'",
-                           selectInput("progression_variable", "CPS progression axis", progression_fields, default_progression),
-                           selectInput("facet_variable", "Facet by", c("All data" = "none", cell_type_fields, region_field), default_facet),
-                           selectInput("color_variable", "Color by", c("All data" = "none", region_field), "none")
-          ),
-          conditionalPanel(condition = "input.plot_type != 'trajectory' && input.plot_type != 'correlation'",
-                           selectInput("x_variable", "Horizontal axis", plot_fields, default_x),
-                           selectInput("second_dimension", "Vertical axis", setdiff(plot_fields, default_x), default_second)
-          ),
-          conditionalPanel(condition = "input.plot_type == 'correlation'",
-                           selectizeInput("comparison_gene", "Comparison gene symbol", choices = NULL,
-                                          options = list(placeholder = "Type a comparison gene symbol", maxOptions = 50, create = FALSE)),
-                           actionButton("get_comparison_gene_data", "Get 2nd gene data", class = "btn-outline-primary", width = "100%"),
-                           div(class = "gene-status", textOutput("comparison_gene_status"))
-          ),
-          conditionalPanel(condition = "input.plot_type != 'correlation' || output.comparison_gene_loaded",
-                           conditionalPanel(condition = "input.plot_type == 'correlation'",
-                                            selectInput("correlation_color_variable", "Color by", c("All data" = "none", unique(c(subclass_field, region_field))), default_correlation_color)
-                           ),
-                           actionButton("make_plot", "Generate plot", class = "btn-primary", width = "100%"),
-                           actionButton("reset_defaults", "Reset plot options", class = "sidebar-secondary mt-1", width = "100%"),
-                           actionButton("share_view", "Share this view", icon = icon("share-nodes"), class = "sidebar-secondary mt-1", width = "100%"),
-                           tags$details(class = "additional-options",
-                                        tags$summary("Additional plot options"),
-                                        conditionalPanel(condition = "input.plot_type != 'dot'",
-                                                         selectInput("trajectory_measure", "Gene metric", c("Gene expression" = "expression", "Fraction of cells expressing" = "fraction"), "expression")
-                                        ),
-                                        conditionalPanel(condition = "input.plot_type == 'trajectory'",
-                                                         selectInput("smoother", "Trend line", c("Linear fit" = "lm", "LOESS smoother" = "loess", "None" = "none"), "lm"),
-                                                         checkboxInput("show_fit_error", "Show 95% confidence (error of fit)", TRUE),
-                                                         checkboxInput("show_points", "Show individual observations", TRUE)
-                                        ),
-                                        conditionalPanel(condition = "input.plot_type == 'violin' || (input.plot_type == 'trajectory' && input.facet_variable != 'none')",
-                                                         div(class = "filter-row",
-                                                             selectInput("facets_per_row", "Facets per row", c("1" = 1, "2" = 2, "3" = 3, "4" = 4), 3),
-                                                             selectInput("facet_row_height", "Height per facet", c("Compact" = 225, "Standard" = 300, "Tall" = 450, "Extra tall" = 600), 450)
-                                                         ),
-                                                         div(class = "filter-row",
-                                                             selectInput("violin_facets_per_page", "Facets per page", c("8" = 8, "12" = 12, "20" = 20, "All" = "all"), 12),
-                                                             uiOutput("violin_page_control")
-                                                         )
-                                        ),
-                                        conditionalPanel(condition = "input.plot_type == 'violin'",
-                                                         selectInput("violin_display", "Distribution display", c("Violin" = "violin", "Boxplot" = "boxplot"), "violin"),
-                                                         checkboxInput("show_violin_points", "Show individual observations", TRUE)
-                                        ),
-                                        conditionalPanel(condition = "input.plot_type != 'correlation'",
-                                                         conditionalPanel(condition = "input.trajectory_measure == 'expression' || input.plot_type == 'dot'",
-                                                                          checkboxInput("log_scale", "Plot ln(CP10K+1)", TRUE)
-                                                         ),
-                                                         div(class = "expression-scale-row",
-                                                             numericInput("expression_minimum", "Minimum Expr", 0, min = 0),
-                                                             numericInput("expression_maximum", "Maximum Expr", 1, min = 0)
-                                                         ),
-                                                         conditionalPanel(condition = "input.plot_type == 'dot'",
-                                                                          div(class = "expression-scale-row",
-                                                                              numericInput("dot_size_minimum", "Min. dot size", 1, min = 0, step = 0.5),
-                                                                              numericInput("dot_size_maximum", "Max. dot size", 9, min = 0.5, step = 0.5)
-                                                                          )
-                                                         ),
-                                                         conditionalPanel(condition = "input.plot_type == 'heatmap'",
-                                                                          checkboxInput("show_heatmap_counts", "Show number of observations", TRUE)
-                                                         )
-                                        ),
-                                        conditionalPanel(condition = "input.plot_type == 'correlation'",
-                                                         div(class = "expression-scale-row",
-                                                             numericInput("correlation_axis_minimum", "Minimum Expr", 0, min = 0),
-                                                             numericInput("correlation_axis_maximum", "Maximum Expr", 1, min = 0)
-                                                         ),
-                                                         checkboxInput("show_orthogonal_fit", "Show orthogonal fit line", TRUE),
-                                                         div(class = "expression-scale-row",
-                                                             numericInput("correlation_size_minimum", "Min. dot size", 1.5, min = 0, step = 0.5),
-                                                             numericInput("correlation_size_maximum", "Max. dot size", 7, min = 0.5, step = 0.5)
-                                                         )
-                                        ),
-                                        actionButton("make_plot_bottom", "Generate plot", class = "btn-primary mt-1", width = "100%")
-                           )
-          )
-        )
-      ),
-      if (tokens_available) {
-        tagList(
-          hr(style = "margin: 3px 0;"),
-          div(
-            class = "glossary-panel",
+            class = "gene-controls sidebar-section",
+            h4("Filter and scale", class = "section-major"),
             selectizeInput(
-              "glossary_token",
-              "Glossary of terms",
-              choices = setNames(tokens$token, tokens$token),
+              "filter_fields",
+              "Filter metadata",
+              choices = filter_fields,
               selected = character(),
-              multiple = FALSE,
+              multiple = TRUE,
               options = list(
-                placeholder = "Type or select a term",
-                maxOptions = nrow(tokens),
-                create = FALSE
+                placeholder = "Add one or more filters",
+                maxOptions = 1000,
+                closeAfterSelect = TRUE,
+                plugins = list("remove_button")
               )
             ),
             div(
-              class = "glossary-definition",
-              textOutput("glossary_definition", inline = TRUE)
-            )
+              class = "stacked-filter-panel",
+              uiOutput("stacked_filter_controls")
+            ),
+            checkboxInput(
+              "omit_zero_values",
+              "Discard values with zero counts",
+              FALSE
+            ),
           ),
-          hr(style = "margin: 3px 0;")
+          div(
+            class = "gene-controls sidebar-section",
+            h4("Plot gene data", class = "section-minor"),
+            selectInput("plot_type", "Plot type", choices = c(
+              "Trajectory across disease" = "trajectory",
+              "Dot plot of expression" = "dot",
+              "Heatmap of expression" = "heatmap",
+              "Violin plot with observations" = "violin",
+              "Two-gene correlation" = "correlation"
+            ), selected = "trajectory"),
+            conditionalPanel(condition = "input.plot_type == 'trajectory'",
+                             selectInput("progression_variable", "CPS progression axis", progression_fields, default_progression),
+                             selectInput("facet_variable", "Facet by", c("All data" = "none", cell_type_fields, region_field), default_facet),
+                             selectInput("color_variable", "Color by", c("All data" = "none", region_field), "none")
+            ),
+            conditionalPanel(condition = "input.plot_type != 'trajectory' && input.plot_type != 'correlation'",
+                             selectInput("x_variable", "Horizontal axis", plot_fields, default_x),
+                             selectInput("second_dimension", "Vertical axis", setdiff(plot_fields, default_x), default_second)
+            ),
+            conditionalPanel(condition = "input.plot_type == 'correlation'",
+                             selectizeInput("comparison_gene", "Comparison gene symbol", choices = NULL,
+                                            options = list(placeholder = "Type a comparison gene symbol", maxOptions = 50, create = FALSE)),
+                             actionButton("get_comparison_gene_data", "Get 2nd gene data", class = "btn-outline-primary", width = "100%"),
+                             div(class = "gene-status", textOutput("comparison_gene_status"))
+            ),
+            conditionalPanel(condition = "input.plot_type != 'correlation' || output.comparison_gene_loaded",
+                             conditionalPanel(condition = "input.plot_type == 'correlation'",
+                                              selectInput("correlation_color_variable", "Color by", c("All data" = "none", unique(c(subclass_field, region_field))), default_correlation_color)
+                             ),
+                             actionButton("make_plot", "Generate plot", class = "btn-primary", width = "100%"),
+                             actionButton("reset_defaults", "Reset plot options", class = "sidebar-secondary mt-1", width = "100%"),
+                             actionButton("share_view", "Share this view", icon = icon("share-nodes"), class = "sidebar-secondary mt-1", width = "100%"),
+                             tags$details(class = "additional-options",
+                                          tags$summary("Additional plot options"),
+                                          conditionalPanel(condition = "input.plot_type != 'dot'",
+                                                           selectInput("trajectory_measure", "Gene metric", c("Gene expression" = "expression", "Fraction of cells expressing" = "fraction"), "expression")
+                                          ),
+                                          conditionalPanel(condition = "input.plot_type == 'trajectory'",
+                                                           selectInput("smoother", "Trend line", c("Linear fit" = "lm", "LOESS smoother" = "loess", "None" = "none"), "lm"),
+                                                           checkboxInput("show_fit_error", "Show 95% confidence (error of fit)", TRUE),
+                                                           checkboxInput("show_points", "Show individual observations", TRUE)
+                                          ),
+                                          conditionalPanel(condition = "input.plot_type == 'violin' || input.plot_type == 'trajectory'",
+                                                           div(class = "filter-row",
+                                                               selectInput("facets_per_row", "Facets per row", c("1" = 1, "2" = 2, "3" = 3, "4" = 4), 3),
+                                                               selectInput("facet_row_height", "Height per facet", c("Compact" = 225, "Standard" = 300, "Tall" = 450, "Extra tall" = 600), 450)
+                                                           ),
+                                                           div(class = "filter-row",
+                                                               selectInput("violin_facets_per_page", "Facets per page", c("8" = 8, "12" = 12, "20" = 20, "All" = "all"), 12),
+                                                               uiOutput("violin_page_control")
+                                                           )
+                                          ),
+                                          conditionalPanel(condition = "input.plot_type == 'violin'",
+                                                           selectInput("violin_display", "Distribution display", c("Violin" = "violin", "Boxplot" = "boxplot"), "violin"),
+                                                           checkboxInput("show_violin_points", "Show individual observations", TRUE)
+                                          ),
+                                          conditionalPanel(condition = "input.plot_type != 'correlation'",
+                                                           conditionalPanel(condition = "input.trajectory_measure == 'expression' || input.plot_type == 'dot'",
+                                                                            checkboxInput("log_scale", "Plot ln(CP10K+1)", TRUE)
+                                                           ),
+                                                           div(class = "expression-scale-row",
+                                                               numericInput("expression_minimum", "Minimum Expr", 0, min = 0, step = 0.1),
+                                                               numericInput("expression_maximum", "Maximum Expr", 1, min = 0, step = 0.1)
+                                                           ),
+                                                           conditionalPanel(condition = "input.plot_type == 'dot'",
+                                                                            div(class = "expression-scale-row",
+                                                                                numericInput("dot_size_minimum", "Min. dot size", 1, min = 0, step = 0.5),
+                                                                                numericInput("dot_size_maximum", "Max. dot size", 9, min = 0.5, step = 0.5)
+                                                                            )
+                                                           ),
+                                                           conditionalPanel(condition = "input.plot_type == 'heatmap'",
+                                                                            checkboxInput("show_heatmap_counts", "Show number of observations", TRUE)
+                                                           )
+                                          ),
+                                          conditionalPanel(condition = "input.plot_type == 'correlation'",
+                                                           div(class = "expression-scale-row",
+                                                               numericInput("correlation_axis_minimum", "Minimum Expr", 0, min = 0, step = 0.1),
+                                                               numericInput("correlation_axis_maximum", "Maximum Expr", 1, min = 0, step = 0.1)
+                                                           ),
+                                                           checkboxInput("show_orthogonal_fit", "Show orthogonal fit line", TRUE),
+                                                           div(class = "expression-scale-row",
+                                                               numericInput("correlation_size_minimum", "Min. dot size", 1.5, min = 0, step = 0.5),
+                                                               numericInput("correlation_size_maximum", "Max. dot size", 7, min = 0.5, step = 0.5)
+                                                           )
+                                          ),
+                                          actionButton("make_plot_bottom", "Generate plot", class = "btn-primary mt-1", width = "100%")
+                             )
+            )
+          )
         )
-      },
-      
-      h4(
-        "Contribute",
-        class = "section-major",
-        style = "font-size: 1.2rem; margin: 1px 0 0px; color: white;"
       ),
       div(
-        style = paste(
-          "display: flex; gap: 6px; width: 100%;",
-          "align-items: stretch; margin-bottom: 1px;"
+        class = "gene-controls sidebar-section",
+        h4(
+          "Contribute",
+          class = "section-major",
+          style = "font-size: 1.2rem; margin: 1px 0 0px; color: white;"
         ),
-        tags$a(
-          href = 'mailto:jeremym@alleninstitute.org?subject=SEA-AD Multiregion Gene Expression Viewer',
-          icon("envelope", lib = "font-awesome"),
-          tags$span("PROVIDE FEEDBACK"),
+        div(
           style = paste(
-            "display: inline-flex; flex: 1 1 0;",
-            "align-items: center; justify-content: center; gap: 4px;",
-            "min-height: 29px; padding: 4px 6px;",
-            "background: #666666; border: 1px solid white;",
-            "border-radius: 0.25rem; color: white !important;",
-            "font-size: 0.68rem; font-weight: 600;",
-            "line-height: 1; text-decoration: none; white-space: nowrap;"
+            "display: flex; gap: 6px; width: 100%;",
+            "align-items: stretch; margin-bottom: 1px;"
+          ),
+          tags$a(
+            href = 'mailto:jeremym@alleninstitute.org?subject=SEA-AD Multiregion Gene Expression Viewer',
+            icon("envelope", lib = "font-awesome"),
+            tags$span("GIVE FEEDBACK"),
+            style = paste(
+              "display: inline-flex; flex: 1 1 0;",
+              "align-items: center; justify-content: center; gap: 4px;",
+              "min-height: 29px; padding: 4px 6px;",
+              "background: #666666; border: 1px solid white;",
+              "border-radius: 0.25rem; color: white !important;",
+              "font-size: 0.68rem; font-weight: 600;",
+              "line-height: 1; text-decoration: none; white-space: nowrap;"
+            )
+          ),
+          tags$a(
+            href = "https://github.com/AllenInstitute/seaad_multiregion_trajectory_viewer/",
+            target = "_blank",
+            rel = "noopener noreferrer",
+            icon("code", lib = "font-awesome"),
+            tags$span("ACCESS CODE"),
+            style = paste(
+              "display: inline-flex; flex: 1 1 0;",
+              "align-items: center; justify-content: center; gap: 4px;",
+              "min-height: 29px; padding: 4px 6px;",
+              "background: #666666; border: 1px solid white;",
+              "border-radius: 0.25rem; color: white !important;",
+              "font-size: 0.68rem; font-weight: 600;",
+              "line-height: 1; text-decoration: none; white-space: nowrap;"
+            )
           )
         ),
-        tags$a(
-          href = "https://github.com/AllenInstitute/seaad_multiregion_trajectory_viewer/",
-          target = "_blank",
-          rel = "noopener noreferrer",
-          icon("code", lib = "font-awesome"),
-          tags$span("ACCESS CODE"),
-          style = paste(
-            "display: inline-flex; flex: 1 1 0;",
-            "align-items: center; justify-content: center; gap: 4px;",
-            "min-height: 29px; padding: 4px 6px;",
-            "background: #666666; border: 1px solid white;",
-            "border-radius: 0.25rem; color: white !important;",
-            "font-size: 0.68rem; font-weight: 600;",
-            "line-height: 1; text-decoration: none; white-space: nowrap;"
-          )
+        p(
+          "We encourage contributions via the above links.",
+          style = "font-size: 0.9rem; line-height: 1.15; margin: 1px 0 5px; color: white;"
+        ),
+        h4(
+          "Acknowledgements",
+          class = "section-minor",
+          style = "font-size: 1.2rem; margin: 1px 0 0px; color: white;"
+        ),
+        p(
+          "App developed by Jeremy Miller, coded with help from Microsoft Copilot (models GPT-5.6 Think and GPT-6.1 Sol). All data included in the app are from ",
+          a(
+            "Multiregional single-cell profiling reveals shared and specialized cellular vulnerability in Alzheimer’s disease",
+            href = "https://doi.org/10.64898/2026.07.01.734821",
+            target = "_blank",
+            rel = "noopener noreferrer",
+            style = "color: white; font-weight: bold;"
+          ),
+          " and are freely available on ",
+          a(
+            "ABC Atlas Access",
+            href = "https://brain-map.org/consortia/sea-ad",
+            target = "_blank",
+            rel = "noopener noreferrer",
+            style = "color: white; font-weight: bold;"
+          ),
+          ". Beta testers include: Irika Sinha and Kyle Travaglini.",
+          style = "font-size: 0.9rem; line-height: 1.15; margin: 1px 0 5px; color: white;"
         )
-      ),
-      p(
-        "We encourage contributions via the above links.",
-        style = "font-size: 0.9rem; line-height: 1.15; margin: 1px 0 5px; color: white;"
-      ),
-      h4(
-        "Acknowledgements",
-        class = "section-minor",
-        style = "font-size: 1.2rem; margin: 1px 0 0px; color: white;"
-      ),
-      p(
-        "App developed by Jeremy Miller, coded with help from Microsoft Copilot (models GPT-5.6 Think and GPT-6.1 Sol). All data included in the app are from ",
-        a(
-          "Multiregional single-cell profiling reveals shared and specialized cellular vulnerability in Alzheimer’s disease",
-          href = "https://doi.org/10.64898/2026.07.01.734821",
-          target = "_blank",
-          rel = "noopener noreferrer",
-          style = "color: white; font-weight: bold;"
-        ),
-        " and are freely available on ",
-        a(
-          "ABC Atlas Access",
-          href = "https://brain-map.org/consortia/sea-ad",
-          target = "_blank",
-          rel = "noopener noreferrer",
-          style = "color: white; font-weight: bold;"
-        ),
-        ". Beta testers include: Irika Sinha and Kyle Travaglini.",
-        style = "font-size: 0.9rem; line-height: 1.15; margin: 1px 0 5px; color: white;"
       )
     ),
     
@@ -3136,7 +3155,7 @@ server <- function(input, output, session) {
     updateNumericInput(session, "correlation_size_maximum", value = 7)
     updateSelectInput(session, "smoother", selected = "lm")
     updateCheckboxInput(session, "show_points", value = TRUE)
-    updateCheckboxInput(session, "show_fit_error", value = FALSE)
+    updateCheckboxInput(session, "show_fit_error", value = TRUE)
     updateSelectInput(session, "violin_display", selected = "violin")
     updateSelectInput(session, "violin_facets_per_page", selected = "12")
     updateSelectInput(session, "violin_page", selected = "1")
@@ -3155,6 +3174,7 @@ server <- function(input, output, session) {
     
     if (identical(input$plot_type, "correlation")) {
       req(comparison_gene_data(), loaded_comparison_gene())
+      validate(need(identical(input$comparison_gene, loaded_comparison_gene()), "Retrieve the selected comparison gene before generating the plot."))
       
       validate(
         need(
@@ -3256,12 +3276,6 @@ server <- function(input, output, session) {
       input$plot_type %in% c("trajectory", "violin"),
       gene_data()
     )
-    if (
-      identical(input$plot_type, "trajectory") &&
-      identical(input$facet_variable, "none")
-    ) {
-      return(NULL)
-    }
     data <- apply_filter_specification(
       gene_data(),
       active_filter_specification()
