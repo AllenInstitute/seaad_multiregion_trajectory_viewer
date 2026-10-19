@@ -1048,6 +1048,42 @@ ui <- function(request) {
         color: #003057; font-size: .78rem; font-weight: 600;
         margin-bottom: 2px;
       }
+      
+            /* Reduce the inner sidebar margins */
+      .bslib-sidebar-layout > .sidebar > .sidebar-content {
+        padding-left: 7px !important;
+        padding-right: 7px !important;
+      }
+      
+      /* Let each box fill the available width */
+      .bslib-sidebar-layout .gene-controls {
+        width: 100%;
+        max-width: none;
+        box-sizing: border-box;
+      }
+      
+      /* Smaller checkbox text, including nested label spans */
+      .bslib-sidebar-layout .shiny-input-checkbox label,
+      .bslib-sidebar-layout .shiny-input-checkbox label span,
+      .bslib-sidebar-layout .checkbox label,
+      .bslib-sidebar-layout .checkbox label span,
+      .bslib-sidebar-layout .form-check-label {
+        font-size: 0.85rem !important;
+        line-height: 1.2 !important;
+      }
+      
+      /* Space between sidebar sections */
+      .bslib-sidebar-layout > .sidebar > .sidebar-content {
+        gap: 8px !important;
+      }
+      
+      /* Remove extra margins around the boxes */
+      .bslib-sidebar-layout .gene-controls,
+      .bslib-sidebar-layout .sidebar-section {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+      }
+      
       @media (max-width: 1100px) {
         .statistics-value-filter-panel {
           grid-template-columns: repeat(2, minmax(0, 1fr));
