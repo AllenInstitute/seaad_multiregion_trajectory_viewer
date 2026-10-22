@@ -483,7 +483,7 @@ region_field <- first_existing(c(
 ))
 class_field <- first_existing(c("class", "class_label", "Class"))
 subclass_field <- first_existing(c("subclass", "subclass_label", "Subclass"))
-cluster_field <- first_existing(c("cluster_alias", "cluster", "cluster_label","Supertype"))
+cluster_field <- first_existing(c("Supertype", "cluster_alias", "cluster", "cluster_label"))
 subcluster_field <- first_existing(c(
   "subcluster_alias", "subcluster", "subcluster_label"
 ))
@@ -1048,42 +1048,6 @@ ui <- function(request) {
         color: #003057; font-size: .78rem; font-weight: 600;
         margin-bottom: 2px;
       }
-      
-            /* Reduce the inner sidebar margins */
-      .bslib-sidebar-layout > .sidebar > .sidebar-content {
-        padding-left: 7px !important;
-        padding-right: 7px !important;
-      }
-      
-      /* Let each box fill the available width */
-      .bslib-sidebar-layout .gene-controls {
-        width: 100%;
-        max-width: none;
-        box-sizing: border-box;
-      }
-      
-      /* Smaller checkbox text, including nested label spans */
-      .bslib-sidebar-layout .shiny-input-checkbox label,
-      .bslib-sidebar-layout .shiny-input-checkbox label span,
-      .bslib-sidebar-layout .checkbox label,
-      .bslib-sidebar-layout .checkbox label span,
-      .bslib-sidebar-layout .form-check-label {
-        font-size: 0.85rem !important;
-        line-height: 1.2 !important;
-      }
-      
-      /* Space between sidebar sections */
-      .bslib-sidebar-layout > .sidebar > .sidebar-content {
-        gap: 8px !important;
-      }
-      
-      /* Remove extra margins around the boxes */
-      .bslib-sidebar-layout .gene-controls,
-      .bslib-sidebar-layout .sidebar-section {
-        margin-top: 0 !important;
-        margin-bottom: 0 !important;
-      }
-      
       @media (max-width: 1100px) {
         .statistics-value-filter-panel {
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1374,7 +1338,7 @@ ui <- function(request) {
                                                                             )
                                                            ),
                                                            conditionalPanel(condition = "input.plot_type == 'heatmap'",
-                                                                            checkboxInput("show_heatmap_counts", "Show number of observations", TRUE)
+                                                                            checkboxInput("show_heatmap_counts", "Show number of observations", FALSE)
                                                            )
                                           ),
                                           conditionalPanel(condition = "input.plot_type == 'correlation'",
@@ -1386,6 +1350,12 @@ ui <- function(request) {
                                                            div(class = "expression-scale-row",
                                                                numericInput("correlation_size_minimum", "Min. dot size", 1.5, min = 0, step = 0.5),
                                                                numericInput("correlation_size_maximum", "Max. dot size", 7, min = 0.5, step = 0.5)
+                                                           )
+                                          ),
+                                          conditionalPanel(condition = "['dot', 'heatmap', 'correlation'].includes(input.plot_type)",
+                                                           div(class = "filter-row",
+                                                               selectInput("matrix_plot_width", "Plot width", c("Compact" = 650, "Standard" = 900, "Wide" = 1200, "Extra wide" = 1600), 900),
+                                                               selectInput("matrix_plot_height", "Plot height", c("Compact" = 400, "Standard" = 600, "Tall" = 850, "Extra tall" = 1100), 600)
                                                            )
                                           ),
                                           actionButton("make_plot_bottom", "Generate plot", class = "btn-primary mt-1", width = "100%")
@@ -1638,7 +1608,7 @@ server <- function(input, output, session) {
   pending_bookmark_state <- reactiveVal(NULL)
   restored_filter_values <- reactiveVal(NULL)
   restore_plot_pending <- reactiveVal(FALSE)
-  bookmark_schema_version <- 2L
+  bookmark_schema_version <- 3L
   
   bookmark_excluded_inputs <- unique(c(
     "gene",
@@ -1675,6 +1645,8 @@ server <- function(input, output, session) {
     "show_violin_points",
     "facets_per_row",
     "facet_row_height",
+    "matrix_plot_width",
+    "matrix_plot_height",
     "statistics_filter_gene_symbol",
     "statistics_filter_max_ROI",
     "statistics_filter_max_subclass",
@@ -1779,7 +1751,10 @@ server <- function(input, output, session) {
       violin_page = isolate(input$violin_page),
       show_violin_points = isolate(input$show_violin_points),
       facets_per_row = isolate(input$facets_per_row),
-      facet_row_height = isolate(input$facet_row_height)
+      facet_row_height = isolate(input$facet_row_height),
+      matrix_plot_width = isolate(input$matrix_plot_width),
+      matrix_plot_height = isolate(input$matrix_plot_height),
+      generated_settings = isolate(plot_settings())
     )
   })
   
@@ -2618,84 +2593,61 @@ server <- function(input, output, session) {
     Filter(Negate(is.null), filters)
   })
   
+  # Restore the submitted plot snapshot, not intermediate input values. The
+  # dynamic facet-page selector and selectize controls may arrive later.
   observe({
     req(isTRUE(restore_plot_pending()))
     saved <- pending_bookmark_state()
-    req(!is.null(saved), !is.null(loaded_gene()))
-    
-    restored_filters <- restored_filter_values()
-    filters_ready <- TRUE
-    if (!is.null(restored_filters) && length(restored_filters$fields) > 0) {
-      filters_ready <- all(vapply(
-        restored_filters$fields,
-        function(field) {
-          expected <- restored_filters$values[[field]]
-          actual <- input[[filter_input_id(field)]]
-          if (is.null(actual)) return(FALSE)
-          if (field %in% numeric_filter_fields) {
-            isTRUE(all.equal(
-              as.numeric(actual),
-              as.numeric(expected),
-              tolerance = 1e-8,
-              check.attributes = FALSE
-            ))
-          } else {
-            identical(
-              sort(as.character(actual)),
-              sort(as.character(expected))
-            )
-          }
-        },
-        logical(1)
-      ))
+    req(!is.null(saved), !is.null(loaded_gene()), gene_data())
+    if (identical(saved$plot_type, "correlation")) {
+      req(comparison_gene_data(), loaded_comparison_gene())
     }
-    req(filters_ready)
-    
+    restored_filters <- restored_filter_values()
+    if (!is.null(restored_filters) && length(restored_filters$fields)) {
+      ready <- all(vapply(restored_filters$fields, function(field) {
+        expected <- restored_filters$values[[field]]
+        actual <- input[[filter_input_id(field)]]
+        if (is.null(expected)) return(TRUE)
+        if (is.null(actual)) return(FALSE)
+        if (field %in% numeric_filter_fields) {
+          isTRUE(all.equal(as.numeric(actual), as.numeric(expected),
+                           tolerance = 1e-8, check.attributes = FALSE))
+        } else {
+          identical(sort(as.character(actual)), sort(as.character(expected)))
+        }
+      }, logical(1)))
+      req(ready)
+    }
+    settings <- saved$generated_settings
+    if (is.null(settings) || !is.list(settings)) {
+      # Compatibility with bookmarks created before the plot snapshot existed.
+      settings <- isolate(capture_plot_settings())
+      for (name in intersect(names(settings), names(saved))) {
+        if (!is.null(saved[[name]])) settings[[name]] <- saved[[name]]
+      }
+      if (!is.null(saved$facet_by)) {
+        if (identical(settings$plot_type, "trajectory")) settings$facet_variable <- saved$facet_by
+        if (identical(settings$plot_type, "violin")) settings$second_dimension <- saved$facet_by
+      }
+    }
+    # Always use the filters reconstructed from the bookmark, not stale inputs.
+    settings$filters <- isolate(active_filter_specification())
+    settings$plot_type <- as.character(saved$plot_type)[1]
+    if (identical(settings$plot_type, "correlation")) {
+      settings$comparison_gene <- loaded_comparison_gene()
+    }
+    settings$matrix_plot_width <- if (is.null(settings$matrix_plot_width)) 900L else as.integer(settings$matrix_plot_width)
+    settings$matrix_plot_height <- if (is.null(settings$matrix_plot_height)) 600L else as.integer(settings$matrix_plot_height)
+    if (is.null(settings$violin_page) || !is.finite(as.numeric(settings$violin_page))) settings$violin_page <- 1L
+    if (is.null(settings$violin_facets_per_page)) settings$violin_facets_per_page <- "12"
+    if (is.null(settings$facets_per_row)) settings$facets_per_row <- 3L
+    if (is.null(settings$facet_row_height)) settings$facet_row_height <- 450L
+    if (is.null(settings$show_heatmap_counts)) settings$show_heatmap_counts <- FALSE
     restored_filter_values(NULL)
-    restore_permalink_plot_controls(saved)
-    session$onFlushed(function() {
-      # onFlushed is not a reactive consumer. isolate() is required because
-      # capture_plot_settings() reads several reactive input values.
-      restored_settings <- isolate(capture_plot_settings())
-      restored_plot_type <- as.character(saved$plot_type)[1]
-      saved_facet <- saved$facet_by
-      if (is.null(saved_facet)) {
-        saved_facet <- if (identical(restored_plot_type, "trajectory")) {
-          saved$facet_variable
-        } else if (identical(restored_plot_type, "violin")) {
-          saved$second_dimension
-        } else {
-          NULL
-        }
-      }
-      saved_facet <- as.character(saved_facet)[1]
-      if (!is.na(saved_facet) && nzchar(saved_facet)) {
-        if (identical(restored_plot_type, "trajectory")) {
-          restored_settings$facet_variable <- saved_facet
-        } else if (identical(restored_plot_type, "violin")) {
-          restored_settings$second_dimension <- saved_facet
-        }
-      }
-      saved_minimum <- saved$scale_minimum
-      saved_maximum <- saved$scale_maximum
-      if (is.null(saved_minimum)) saved_minimum <- if (identical(restored_plot_type, "correlation")) saved$correlation_axis_minimum else saved$expression_minimum
-      if (is.null(saved_maximum)) saved_maximum <- if (identical(restored_plot_type, "correlation")) saved$correlation_axis_maximum else saved$expression_maximum
-      saved_minimum <- suppressWarnings(as.numeric(saved_minimum)[1])
-      saved_maximum <- suppressWarnings(as.numeric(saved_maximum)[1])
-      if (is.finite(saved_minimum) && is.finite(saved_maximum) && saved_minimum < saved_maximum) {
-        if (identical(restored_plot_type, "correlation")) {
-          restored_settings$correlation_axis_minimum <- saved_minimum
-          restored_settings$correlation_axis_maximum <- saved_maximum
-        } else {
-          restored_settings$expression_minimum <- saved_minimum
-          restored_settings$expression_maximum <- saved_maximum
-        }
-      }
-      restore_plot_pending(FALSE)
-      plot_settings(restored_settings)
-      bslib::nav_select(id = "main_tabs", selected = "Plot gene of interest", session = session)
-      pending_bookmark_state(NULL)
-    }, once = TRUE)
+    plot_settings(settings)
+    restore_plot_pending(FALSE)
+    bslib::nav_select(id = "main_tabs", selected = "Plot gene of interest", session = session)
+    pending_bookmark_state(NULL)
   }, priority = -100)
   
   control_metadata <- reactive({
@@ -2733,7 +2685,9 @@ server <- function(input, output, session) {
       color_choices
     )
     
-    current_facet <- isolate(input$facet_variable)
+    restoring <- isTRUE(isolate(restore_plot_pending()))
+    saved_controls <- isolate(pending_bookmark_state())
+    current_facet <- if (restoring && !is.null(saved_controls$facet_variable)) saved_controls$facet_variable else isolate(input$facet_variable)
     if (!current_facet %in% unname(facet_choices)) {
       current_facet <- if (default_facet %in% unname(facet_choices)) {
         default_facet
@@ -2742,7 +2696,7 @@ server <- function(input, output, session) {
       }
     }
     
-    current_color <- isolate(input$color_variable)
+    current_color <- if (restoring && !is.null(saved_controls$color_variable)) saved_controls$color_variable else isolate(input$color_variable)
     if (!current_color %in% unname(color_choices)) {
       current_color <- if (default_color %in% unname(color_choices)) {
         default_color
@@ -2763,7 +2717,7 @@ server <- function(input, output, session) {
       choices = color_choices,
       selected = current_color
     )
-    current_correlation_color <- isolate(input$correlation_color_variable)
+    current_correlation_color <- if (restoring && !is.null(saved_controls$correlation_color_variable)) saved_controls$correlation_color_variable else isolate(input$correlation_color_variable)
     if (!current_correlation_color %in% unname(color_choices)) {
       current_correlation_color <- if (
         default_correlation_color %in% unname(color_choices)
@@ -2800,13 +2754,14 @@ server <- function(input, output, session) {
       )
       
       if (
-        plot_type_changed &&
+        plot_type_changed && !isTRUE(isolate(restore_plot_pending())) &&
         input$plot_type %in% c("heatmap", "dot") &&
         default_x %in% dimension_choices
       ) {
         current_x <- default_x
       } else {
-        current_x <- isolate(input$x_variable)
+        saved_controls <- isolate(pending_bookmark_state())
+        current_x <- if (isTRUE(isolate(restore_plot_pending())) && !is.null(saved_controls$x_variable)) saved_controls$x_variable else isolate(input$x_variable)
         if (
           is.null(current_x) ||
           length(current_x) == 0 ||
@@ -2832,16 +2787,17 @@ server <- function(input, output, session) {
         second_choices <- c("All data" = "none", second_choices)
       }
       
-      if (plot_type_changed && identical(input$plot_type, "violin")) {
+      if (plot_type_changed && !isTRUE(isolate(restore_plot_pending())) && identical(input$plot_type, "violin")) {
         current_second <- "none"
       } else if (
-        plot_type_changed &&
+        plot_type_changed && !isTRUE(isolate(restore_plot_pending())) &&
         input$plot_type %in% c("heatmap", "dot") &&
         default_second %in% second_choices
       ) {
         current_second <- default_second
       } else {
-        current_second <- isolate(input$second_dimension)
+        saved_controls <- isolate(pending_bookmark_state())
+        current_second <- if (isTRUE(isolate(restore_plot_pending())) && !is.null(saved_controls$second_dimension)) saved_controls$second_dimension else isolate(input$second_dimension)
         if (
           is.null(current_second) ||
           length(current_second) == 0 ||
@@ -2986,7 +2942,7 @@ server <- function(input, output, session) {
         value = as.numeric(saved$dot_size_maximum)[1]
       )
     }
-    updateCheckboxInput(
+    if (!is.null(saved$show_heatmap_counts)) updateCheckboxInput(
       session, "show_heatmap_counts", value = isTRUE(saved$show_heatmap_counts)
     )
     updateCheckboxInput(
@@ -3031,6 +2987,8 @@ server <- function(input, output, session) {
         selected = as.character(saved$facet_row_height)[1]
       )
     }
+    if (!is.null(saved$matrix_plot_width)) updateSelectInput(session, "matrix_plot_width", selected = as.character(saved$matrix_plot_width)[1])
+    if (!is.null(saved$matrix_plot_height)) updateSelectInput(session, "matrix_plot_height", selected = as.character(saved$matrix_plot_height)[1])
     
     saved_filter_fields <- as.character(saved$filter_fields)
     saved_filter_fields <- saved_filter_fields[
@@ -3170,8 +3128,10 @@ server <- function(input, output, session) {
     updateCheckboxInput(
       session,
       "show_heatmap_counts",
-      value = TRUE
+      value = FALSE
     )
+    updateSelectInput(session, "matrix_plot_width", selected = "900")
+    updateSelectInput(session, "matrix_plot_height", selected = "600")
     updateSelectInput(session, "plot_type", selected = "trajectory")
     updateSelectInput(session, "trajectory_measure", selected = "expression")
     updateSelectInput(session, "progression_variable", selected = default_progression)
@@ -3279,7 +3239,9 @@ server <- function(input, output, session) {
       facets_per_row = as.integer(input$facets_per_row),
       facet_row_height = as.integer(input$facet_row_height),
       x_variable = input$x_variable,
-      second_dimension = input$second_dimension
+      second_dimension = input$second_dimension,
+      matrix_plot_width = as.integer(input$matrix_plot_width),
+      matrix_plot_height = as.integer(input$matrix_plot_height)
     )
   }
   
@@ -3347,7 +3309,12 @@ server <- function(input, output, session) {
       max(1L, parsed_per_page)
     }
     page_count <- max(1L, ceiling(number_of_facets / per_page))
-    current <- suppressWarnings(as.integer(isolate(input$violin_page)))
+    saved_controls <- isolate(pending_bookmark_state())
+    current <- if (isTRUE(isolate(restore_plot_pending())) && !is.null(saved_controls$violin_page)) {
+      suppressWarnings(as.integer(saved_controls$violin_page))
+    } else {
+      suppressWarnings(as.integer(isolate(input$violin_page)))
+    }
     if (
       length(current) == 0 ||
       !is.finite(current[[1]]) ||
@@ -3405,7 +3372,7 @@ server <- function(input, output, session) {
         filter(n() >= 2) |>
         ungroup()
     }
-    number_of_facets <- length(field_levels(data, field))
+    number_of_facets <- length(intersect(field_levels(data, field), unique(as.character(data[[field]]))))
     per_page_value <- as.character(settings$violin_facets_per_page)
     if (length(per_page_value) != 1L || is.na(per_page_value)) {
       per_page_value <- "12"
@@ -3479,7 +3446,9 @@ server <- function(input, output, session) {
   plot_pixel_height <- reactive({
     settings <- plot_settings()
     req(settings)
-    if (!settings$plot_type %in% c("trajectory", "violin")) return(600L)
+    if (!settings$plot_type %in% c("trajectory", "violin")) {
+      return(if (is.null(settings$matrix_plot_height)) 600L else as.integer(settings$matrix_plot_height))
+    }
     data <- filtered_data()
     field <- if (identical(settings$plot_type, "trajectory")) settings$facet_variable else settings$second_dimension
     if (identical(field, "none")) {
@@ -3491,9 +3460,15 @@ server <- function(input, output, session) {
     rows * max(150L, settings$facet_row_height)
   })
   
+  plot_pixel_width <- reactive({
+    settings <- plot_settings()
+    req(settings)
+    if (settings$plot_type %in% c("trajectory", "violin")) return(NULL)
+    if (is.null(settings$matrix_plot_width)) 900L else as.integer(settings$matrix_plot_width)
+  })
   output$plot_size_css <- renderUI({
     tags$style(HTML(
-      ".plot-wrapper { overflow-y: auto !important; overflow-x: hidden !important; } .plot-wrapper .shiny-spinner-output-container, .plot-wrapper .load-container { height: auto !important; min-height: 0 !important; } #expression_plot { height: auto !important; min-height: 0 !important; } #expression_plot img { display: block; }"
+      ".plot-wrapper { overflow-y: auto !important; overflow-x: auto !important; } .plot-wrapper .shiny-spinner-output-container, .plot-wrapper .load-container { height: auto !important; min-height: 0 !important; } #expression_plot { height: auto !important; min-height: 0 !important; } #expression_plot img { display: block; max-width: none !important; }"
     ))
   })
   
@@ -4157,6 +4132,11 @@ server <- function(input, output, session) {
           theme_minimal(base_size = 11) +
           theme(
             aspect.ratio = 1,
+            legend.box = "vertical",
+            legend.direction = "horizontal",
+            legend.justification = "center",
+            legend.box.just = "center",
+            legend.text = element_text(size = 8),
             legend.position = if (color_enabled || use_cell_size) {
               "bottom"
             } else {
@@ -4204,8 +4184,13 @@ server <- function(input, output, session) {
         } else {
           plot <- plot + guides(size = "none")
         }
+        if (color_enabled || use_cell_size) {
+          plot <- plot + guides(
+            size = guide_legend(order = 1, nrow = 1),
+            color = guide_legend(order = 2, ncol = 3, byrow = TRUE)
+          )
+        }
         plot
-        
       } else if (settings$plot_type == "trajectory") {
         facet_enabled <- !identical(settings$facet_variable, "none")
         color_enabled <- !identical(settings$color_variable, "none")
@@ -4662,7 +4647,14 @@ server <- function(input, output, session) {
     } else {
       rendered_plot
     }
-  }, height = function() plot_pixel_height(), res = 96, execOnResize = FALSE)
+  }, height = function() plot_pixel_height(),
+  width = function() {
+    width <- plot_pixel_width()
+    if (is.null(width)) {
+      available <- session$clientData$output_expression_plot_width
+      if (is.null(available) || !is.finite(available)) 900L else available
+    } else width
+  }, res = 96, execOnResize = FALSE)
   
   output$plot_title <- renderText({
     if (is.null(loaded_gene())) {
