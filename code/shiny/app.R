@@ -1189,7 +1189,7 @@ ui <- function(request) {
           class = "resource-button-row",
           style = "grid-template-columns: 1fr 1fr; margin-top: 0;",
           tags$a(
-            href = "Overview.mp4",
+            href = "https://alleninstitute.github.io/seaad_multiregion_trajectory_viewer/trajectory_overview.mp4",
             target = "_blank",
             rel = "noopener noreferrer",
             class = "btn sidebar-secondary",
